@@ -1,7 +1,8 @@
 // memory model
 // field-free case
 
-#define EIGEN_USE_ACCELERATE
+#define EIGEN_USE_BLAS
+#define EIGEN_USE_LAPACKE
 
 #include "cnpy.h"
 #include <iostream>

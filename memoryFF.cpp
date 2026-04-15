@@ -1,8 +1,9 @@
 // memory model
 // field-free case
 
-#define EIGEN_USE_ACCELERATE
+#define EIGEN_USE_MKL_ALL
 
+#include <cxxopts.hpp>
 #include "cnpy.h"
 #include <iostream>
 #include <fstream>
@@ -72,23 +73,62 @@ Eigen::MatrixXcd qprop(int n, double h, const Eigen::VectorXd& hamiltonian, cons
   Eigen::MatrixXcd bigmatpinv = pseudoInverse(bigmat, tol);
   Eigen::MatrixXcd thisredprop = redprop(1, h, hamiltonian, redCols);
   return BmatT * thisredprop * bigmatpinv;
-  /*
-  // Solve bigmat * x = (BmatT * thisredprop)^T
-  // for x, in least squares sense
-  auto rhs = (BmatT * thisredprop).transpose();
-  auto x = bigmat.householderQr().solve(rhs);
-  return x.transpose();
-  */
 }
 
-int main(void)
+int main(int argc, char** argv)
 {
+  cxxopts::Options options("memoryFF", "Field-free memory model for 1RDM propagation");
+
+  options.add_options()
+  ("dt", "Time step size", cxxopts::value<double>())
+  ("delay", "Integer value of delay", cxxopts::value<int>())
+  ("infile", "Input file name", cxxopts::value<std::string>())
+  ("verbose", "Print lots of information to creen", cxxopts::value<bool>()->default_value("false"))
+  ("tol", "SVD tolerance", cxxopts::value<double>()->default_value("1e-7"));
+  
+  auto result = options.parse(argc, argv);
+
+  double dt, tol;
+  int delay;
+  std::string infile;
+  bool verbose;
+
+  if (result.count("dt")==0)
+  {
+    std::cout << "Must specify dt!\n";
+    return 1;
+  }
+  else
+    dt = result["dt"].as<double>();
+  if (result.count("delay")==0)
+  {
+    std::cout << "Must specify delay!\n";
+    return 1;
+  }
+  else 
+    delay = result["delay"].as<int>();
+  if (result.count("infile")==0)
+  {
+    std::cout << "Must specify input file!\n";
+    return 1;
+  }
+  else
+    infile = result["infile"].as<std::string>();
+  if (result.count("tol")==0)
+    tol = 1e-7;
+  else
+    tol = result["tol"].as<double>();
+  if (result.count("verbose")==0)
+    verbose = false;
+  else
+    verbose = true;    
+
   // parameters to convert to command line arguments
-  double dt = 0.001;
-  int delay = 2000;
+  // double dt = 0.001;
+  // int delay = 2000;
 
   // Load the entire .npz file into a map-like structure
-  cnpy::npz_t my_npz = cnpy::npz_load("fci_heh+_6-31g.npz");
+  cnpy::npz_t my_npz = cnpy::npz_load(infile);
 
   // Load ham
   cnpy::NpyArray arr = my_npz["ham"];
@@ -97,7 +137,8 @@ int main(void)
   Eigen::Map<Eigen::VectorXd> ham(hamdata, length);
   int drcCI = (int) length;
   int drcCI2 = drcCI*drcCI;
-  std::cout << "drcCI = " << drcCI << "\n";
+  if (verbose)
+    std::cout << "drcCI = " << drcCI << "\n";
 
   // Load Bten  
   arr = my_npz["Bten"];
@@ -105,7 +146,8 @@ int main(void)
   length = arr.shape[0]*arr.shape[1]*arr.shape[2]*arr.shape[3];
   int drc = (int) arr.shape[2];
   int drc2 = drc*drc;
-  std::cout << "drc = " << drc << "\n";
+  if (((verbose)))
+    std::cout << "drc = " << drc << "\n";
   Eigen::Map<Eigen::VectorXd> Bten(Btendata, length);
   Eigen::Map<const Eigen::MatrixXd> BmatT(Bten.data(), drc2, drcCI2);
 
@@ -133,20 +175,25 @@ int main(void)
     if (colnorms[j] > 1e-14)
       goodCols.push_back(j);
   }
-  std::cout << "number of good cols = " << goodCols.size() << "\n";
+  if (verbose)
+    std::cout << "number of good cols = " << goodCols.size() << "\n";
 
   // create new matrix with selected columns
   Eigen::MatrixXd BmatTgood(drc2, goodCols.size());
   for (size_t j=0; j<goodCols.size(); ++j)
     BmatTgood.col(j) = BmatT.col(goodCols[j]);
 
-  std::cout << "BmatTgood # of rows = " << BmatTgood.rows() << "\n";
-  std::cout << "BmatTgood # of cols = " << BmatTgood.cols() << "\n";
-
-  Eigen::MatrixXcd thisqprop = qprop(delay, dt, ham, goodCols, BmatTgood, 1e-7);
-  std::cout << "thisqprop # of rows = " << thisqprop.rows() << "\n";
-  std::cout << "thisqprop # of cols = " << thisqprop.cols() << "\n";
-
+  if (verbose)
+  {
+    std::cout << "BmatTgood # of rows = " << BmatTgood.rows() << "\n";
+    std::cout << "BmatTgood # of cols = " << BmatTgood.cols() << "\n";
+  }
+  Eigen::MatrixXcd thisqprop = qprop(delay, dt, ham, goodCols, BmatTgood, tol);
+  if (verbose)
+  {
+    std::cout << "thisqprop # of rows = " << thisqprop.rows() << "\n";
+    std::cout << "thisqprop # of cols = " << thisqprop.cols() << "\n";
+  }
   // save qprop to disk
   const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ", ", "\n"); 
   std::string name = "thisqpropR.csv";
@@ -159,7 +206,8 @@ int main(void)
   // initialize coeff matrix and set initial condition
   double T = 200.0;
   int nsteps = static_cast<int>(std::ceil(T/dt));
-  std::cout << "About to propagate full TDCI coefficients for " << nsteps << " steps\n";
+  if (verbose)
+    std::cout << "About to propagate full TDCI coefficients for " << nsteps << " steps\n";
 
   Eigen::MatrixXcd coeffs(drcCI, nsteps+1);
   for (int j=0; j<drcCI; ++j)
@@ -171,8 +219,9 @@ int main(void)
   {
     coeffs.col(k+1) = fullprop * coeffs.col(k);
   }
-  
-  std::cout << "Norm of solution at final time = " << coeffs.col(nsteps).norm() << "\n";
+
+  if (verbose)
+    std::cout << "Norm of solution at final time = " << coeffs.col(nsteps).norm() << "\n";
 
   // compute ground truth 1RDMs
   Eigen::MatrixXcd true1rdms(drc2, nsteps+1);
@@ -187,19 +236,23 @@ int main(void)
 
   // set up predicted 1RDMs
   Eigen::MatrixXcd pred1rdms(drc2, nsteps+1);
-  std::cout << "About to propagate 1RDMs for " << nsteps << " steps\n";
+  if (verbose)
+    std::cout << "About to propagate 1RDMs for " << nsteps << " steps\n";
   for (int k=0; k<=delay; ++k)
     pred1rdms.col(k) = true1rdms.col(k);
-
+  
   for (int k=delay; k<nsteps; ++k)
   {
     Eigen::MatrixXcd temp = pred1rdms.block(0, k-delay, drc2, delay+1).rowwise().reverse();
     Eigen::MatrixXcd temp2 = (temp.colwise() - bvec).reshaped();
     pred1rdms.col(k+1) = bvec + thisqprop * temp2;
-  } 
-
+  }
+  
   double mae = (true1rdms - pred1rdms).array().abs().mean();
-  std::cout << "Mean Absolute Error: " << mae << "\n";
+  if (verbose)
+    std::cout << "Mean Absolute Error: " << mae << "\n";
+  else
+    std::cout << mae << "\n";
 
   return 0;
 }
