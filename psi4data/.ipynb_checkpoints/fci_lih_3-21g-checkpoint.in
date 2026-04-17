@@ -1,0 +1,27 @@
+memory 128 gb
+
+molecule lih {
+H  0.       0.      -0.765
+Li 0.       0.       0.765
+symmetry c1
+no_com
+no_reorient
+}
+
+set {
+    reference rhf
+    basis 3-21g
+    ms0 false
+    fci true
+    diag_method sem
+    num_roots 1
+    num_dets_print 2000
+    print 2
+    dipmom true
+    opdm true
+    tdm true
+}
+
+energy = energy('detci')
+
+

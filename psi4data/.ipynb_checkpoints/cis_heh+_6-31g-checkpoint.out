@@ -1,0 +1,1533 @@
+
+    -----------------------------------------------------------------------
+          Psi4: An Open-Source Ab Initio Electronic Structure Package
+                               Psi4 1.9.1 release
+
+                         Git: Rev {} zzzzzzz 
+
+
+    D. G. A. Smith, L. A. Burns, A. C. Simmonett, R. M. Parrish,
+    M. C. Schieber, R. Galvelis, P. Kraus, H. Kruse, R. Di Remigio,
+    A. Alenaizan, A. M. James, S. Lehtola, J. P. Misiewicz, M. Scheurer,
+    R. A. Shaw, J. B. Schriber, Y. Xie, Z. L. Glick, D. A. Sirianni,
+    J. S. O'Brien, J. M. Waldrop, A. Kumar, E. G. Hohenstein,
+    B. P. Pritchard, B. R. Brooks, H. F. Schaefer III, A. Yu. Sokolov,
+    K. Patkowski, A. E. DePrince III, U. Bozkaya, R. A. King,
+    F. A. Evangelista, J. M. Turney, T. D. Crawford, C. D. Sherrill,
+    J. Chem. Phys. 152(18) 184108 (2020). https://doi.org/10.1063/5.0006002
+
+                            Additional Code Authors
+    E. T. Seidl, C. L. Janssen, E. F. Valeev, M. L. Leininger,
+    J. F. Gonthier, R. M. Richard, H. R. McAlexander, M. Saitow, X. Wang,
+    P. Verma, M. H. Lechner, A. Jiang, S. Behnle, A. G. Heide,
+    M. F. Herbst, and D. L. Poole
+
+             Previous Authors, Complete List of Code Contributors,
+                       and Citations for Specific Modules
+    https://github.com/psi4/psi4/blob/master/codemeta.json
+    https://github.com/psi4/psi4/graphs/contributors
+    http://psicode.org/psi4manual/master/introduction.html#citing-psifour
+
+    -----------------------------------------------------------------------
+
+
+    Psi4 started on: Sunday, 17 August 2025 07:12PM
+
+    Process ID: 1447126
+    Host:       gnode010.cluster
+    PSIDATADIR: /home/hbhat/psi4conda/share/psi4
+    Memory:     500.0 MiB
+    Threads:    1
+    
+  ==> Input File <==
+
+--------------------------------------------------------------------------
+molecule hehp {
+1 1
+H  0.       0.      -0.386
+He 0.       0.       0.386
+}
+
+set {
+    reference rhf
+    basis 6-31g
+    ex_level 1
+    calc_s_squared true
+    num_roots 7
+    diag_method rsp
+    print 2
+    dipmom true
+    opdm true
+    tdm true
+}
+
+thisenergy, ciwfn = prop('detci', properties=['DIPOLE', 'TRANSITION_DIPOLE'], return_wfn=True)
+
+for i in range(7):
+    for j in range(i+1):
+        ciop_dm = ciwfn.get_opdm(i,j,'SUM',True)
+        ciop_dm.print_out()
+
+mints = MintsHelper(ciwfn.basisset())
+
+AOdip = mints.ao_dipole()
+AOdip[0].print_out()
+AOdip[1].print_out()
+AOdip[2].print_out()
+
+ciwfn.Ca().print_out()               # Print orbital information
+
+
+
+
+
+--------------------------------------------------------------------------
+   => Libint2 <=
+
+    Primary   basis highest AM E, G, H:  6, 6, 3
+    Auxiliary basis highest AM E, G, H:  7, 7, 4
+    Onebody   basis highest AM E, G, H:  -, -, -
+    Solid Harmonics ordering:            Gaussian
+
+*** tstart() called on gnode010.cluster
+*** at Sun Aug 17 19:12:05 2025
+
+   => Loading Basis Set <=
+
+    Name: 6-31G
+    Role: ORBITAL
+    Keyword: BASIS
+    atoms 1 entry H          line    26 file /home/hbhat/psi4conda/share/psi4/basis/6-31g.gbs 
+    atoms 2 entry HE         line    34 file /home/hbhat/psi4conda/share/psi4/basis/6-31g.gbs 
+
+
+         ---------------------------------------------------------
+                                   SCF
+               by Justin Turney, Rob Parrish, Andy Simmonett
+                          and Daniel G. A. Smith
+                              RHF Reference
+                        1 Threads,    500 MiB Core
+         ---------------------------------------------------------
+
+  ==> Geometry <==
+
+    Molecular point group: c2v
+    Full point group: C_inf_v
+
+    Geometry (in Angstrom), charge = 1, multiplicity = 1:
+
+       Center              X                  Y                   Z               Mass       
+    ------------   -----------------  -----------------  -----------------  -----------------
+         H            0.000000000000     0.000000000000    -0.616715684885     1.007825032230
+         HE           0.000000000000     0.000000000000     0.155284315115     4.002603254130
+
+  Running in c2v symmetry.
+
+  Rotational constants: A = ************  B =     35.13250  C =     35.13250 [cm^-1]
+  Rotational constants: A = ************  B = 1053245.86783  C = 1053245.86783 [MHz]
+  Nuclear repulsion =    1.370925416243523
+
+  Charge       = 1
+  Multiplicity = 1
+  Electrons    = 2
+  Nalpha       = 1
+  Nbeta        = 1
+
+  ==> Algorithm <==
+
+  SCF Algorithm Type is PK.
+  DIIS enabled.
+  MOM disabled.
+  Fractional occupation disabled.
+  Guess Type is SAD.
+  Energy threshold   = 1.00e-10
+  Density threshold  = 1.00e-10
+  Integral threshold = 1.00e-12
+
+  ==> Primary Basis <==
+
+  -AO BASIS SET INFORMATION:
+    Name                   = 6-31G
+    Blend                  = 6-31G
+    Total number of shells = 4
+    Number of primitives   = 8
+    Number of AO           = 4
+    Number of SO           = 4
+    Maximum AM             = 0
+    Spherical Harmonics    = FALSE
+
+  -Contraction Scheme:
+    Atom   Type   All Primitives // Shells:
+   ------ ------ --------------------------
+       1     H     4s // 2s 
+       2    HE     4s // 2s 
+
+  ==> Integral Setup <==
+
+  Using in-core PK algorithm.
+   Calculation information:
+      Number of atoms:                   2
+      Number of AO shells:               4
+      Number of primitives:              8
+      Number of atomic orbitals:         4
+      Number of basis functions:         4
+
+      Integral cutoff                 1.00e-12
+      Number of threads:                 1
+
+  Performing in-core PK
+  Using 110 doubles for integral storage.
+  We computed 55 shell quartets total.
+  Whereas there are 55 unique shell quartets.
+
+  ==> DiskJK: Disk-Based J/K Matrices <==
+
+    J tasked:                  Yes
+    K tasked:                  Yes
+    wK tasked:                  No
+    Memory [MiB]:              375
+    Schwarz Cutoff:          1E-12
+
+    OpenMP threads:              1
+
+  Minimum eigenvalue in the overlap matrix is 1.6084999674E-01.
+  Reciprocal condition number of the overlap matrix is 6.1101689587E-02.
+    Using symmetric orthogonalization.
+
+  ==> Pre-Iterations <==
+
+  SCF Guess: Superposition of Atomic Densities via on-the-fly atomic UHF (no occupation information).
+
+   -------------------------
+    Irrep   Nso     Nmo    
+   -------------------------
+     A1         4       4 
+     A2         0       0 
+     B1         0       0 
+     B2         0       0 
+   -------------------------
+    Total       4       4
+   -------------------------
+
+  ==> Iterations <==
+
+                        Total Energy        Delta E     RMS |[F,P]|
+
+   @RHF iter SAD:    -3.47952509295405   -3.47953e+00   0.00000e+00 
+   @RHF iter   1:    -2.89179510746885    5.87730e-01   4.56422e-02 ADIIS/DIIS
+   @RHF iter   2:    -2.90949447568790   -1.76994e-02   6.16408e-03 ADIIS/DIIS
+   @RHF iter   3:    -2.90985259125897   -3.58116e-04   4.39513e-04 ADIIS/DIIS
+   @RHF iter   4:    -2.90985437750446   -1.78625e-06   2.25901e-06 DIIS
+   @RHF iter   5:    -2.90985437754501   -4.05489e-11   8.95334e-08 DIIS
+   @RHF iter   6:    -2.90985437754512   -1.11022e-13   1.83108e-09 DIIS
+   @RHF iter   7:    -2.90985437754512    8.88178e-16   6.30462e-13 DIIS
+  Energy and wave function converged.
+
+
+  ==> Post-Iterations <==
+
+    Orbital Energies [Eh]
+    ---------------------
+
+    Doubly Occupied:                                                      
+
+       1A1    -1.632772  
+
+    Virtual:                                                              
+
+       2A1    -0.263114     3A1     0.439397     4A1     1.076325  
+
+    Final Occupation by Irrep:
+             A1    A2    B1    B2 
+    DOCC [     1,    0,    0,    0 ]
+    NA   [     1,    0,    0,    0 ]
+    NB   [     1,    0,    0,    0 ]
+
+  @RHF Final Energy:    -2.90985437754512
+
+   => Energetics <=
+
+    Nuclear Repulsion Energy =              1.3709254162435234
+    One-Electron Energy =                  -5.2960157980259366
+    Two-Electron Energy =                   1.0152360042372908
+    Total Energy =                         -2.9098543775451224
+
+Computation Completed
+
+
+Properties will be evaluated at   0.000000,   0.000000,   0.000000 [a0]
+
+Properties computed using the SCF density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.1748680           -0.5785341           -0.7534021
+ Magnitude           :                                                    0.7534021
+
+ ------------------------------------------------------------------------------------
+
+*** tstop() called on gnode010.cluster at Sun Aug 17 19:12:06 2025
+Module time:
+	user time   =       0.14 seconds =       0.00 minutes
+	system time =       0.02 seconds =       0.00 minutes
+	total time  =          1 seconds =       0.02 minutes
+Total time:
+	user time   =       0.14 seconds =       0.00 minutes
+	system time =       0.02 seconds =       0.00 minutes
+	total time  =          1 seconds =       0.02 minutes
+ MINTS: Wrapper to libmints.
+   by Justin Turney
+
+   Calculation information:
+      Number of threads:                 1
+      Number of atoms:                   2
+      Number of AO shells:               4
+      Number of SO shells:               4
+      Number of primitives:              8
+      Number of atomic orbitals:         4
+      Number of basis functions:         4
+
+      Number of irreps:                  4
+      Integral cutoff                 1.00e-12
+      Number of functions per irrep: [   4    0    0    0 ]
+
+ OEINTS: Overlap, kinetic, potential, dipole, and quadrupole integrals
+         stored in file 35.
+
+      Computing two-electron integrals...done
+      Computed 55 non-zero two-electron integrals.
+        Stored in file 33.
+
+
+         ---------------------------------------------------------
+                          Configuration Interaction
+                            (a 'D E T C I' module)
+
+                 C. David Sherrill, Daniel G. A. Smith, and
+                              Matt L. Leininger
+         ---------------------------------------------------------
+
+DAVIDSON update not available for OLSEN or MITRUSH iterators
+
+   ==> Parameters <==
+
+    EX LEVEL       =        1      H0 BLOCKSIZE  =     1000
+    VAL EX LEVEL   =        0      H0 GUESS SIZE =     1000
+    H0COUPLINGSIZE =        0      H0 COUPLING   =       NO
+    MAXITER        =       24      NUM PRINT     =       20
+    NUM ROOTS      =        7      ICORE         =        1
+    PRINT LVL      =        2      FCI           =       NO
+    R CONV         = 1.00e-04      MIXED         =      YES
+    E CONV         = 1.00e-08      MIXED4        =      YES
+    R4S            =       NO      REPL OTF      =       NO
+    DIAG METHOD    =      RSP      FOLLOW ROOT   =        0
+    PRECONDITIONER = DAVIDSON      UPDATE        = OLSEN
+    S              =   0.0000      Ms0           =      YES
+    GUESS VECTOR   =  H0BLOCK      OPENTYPE      =     NONE
+    COLLAPSE SIZE  =        1      HD AVG        = EVANGELISTI
+    MAX NUM VECS   =        0      REF SYM       =     AUTO
+    IOPEN        =       NO
+
+    EX ALLOW       =  1 
+    STATE AVERAGE  =  0(1.00) 
+
+   ==> CI Orbital and Space information <==
+
+    RAS1 LVL      =        0      A RAS3 MAX    =        1
+    RAS1 MIN      =        1      B RAS3 MAX    =        1
+    A RAS1 LVL    =        0      RAS4 LVL      =        4
+    A RAS1 MIN    =        0      A RAS4 MAX    =        0
+    A RAS1 MAX    =        1      B RAS4 MAX    =        0
+    B RAS1 LVL    =        0      RAS4 MAX      =        0
+    B RAS1 MIN    =        0      A RAS34 MAX   =        1
+    B RAS1 MAX    =        1      B RAS34 MAX   =        1
+    RAS3 LVL      =        1      RAS34 MAX     =        1
+    RAS3 MAX      =        1
+   ------------------------------------------------------
+               Space    Total    A1    A2    B1    B2
+   ------------------------------------------------------
+                 Nso        4     4     0     0     0
+                 Nmo        4     4     0     0     0
+               Ndocc        1     1     0     0     0
+               Nsocc        0     0     0     0     0
+   ------------------------------------------------------
+                       CI Spaces
+   ------------------------------------------------------
+        Dropped DOCC        0     0     0     0     0
+                RAS1        1     1     0     0     0
+                RAS2        0     0     0     0     0
+                RAS3        3     3     0     0     0
+                RAS4        0     0     0     0     0
+      Active (total)        4     4     0     0     0
+        Dropped UOCC        0     0     0     0     0
+   ------------------------------------------------------
+
+   ==> Setting up CI strings <==
+
+    There are 4 alpha and 4 beta strings
+    The CI space requires 7 (7.00E+00) determinants and 3 blocks
+    Total H0block size (including coupling): 7
+
+   ==> Transforming CI integrals <==
+
+	Presorting SO-basis two-electron integrals.
+	Sorting File: SO Ints (nn|nn) nbuckets = 1
+	Constructing frozen core operators
+	Starting first half-transformation.
+	h = 0; memfree         = 65535968
+	h = 0; rows_per_bucket = 10
+	h = 0; rows_left       = 0
+	h = 0; nbuckets        = 1
+	h = 1; memfree         = 65535968
+	h = 1; rows_per_bucket = 0
+	h = 1; rows_left       = 0
+	h = 1; nbuckets        = 0
+	h = 2; memfree         = 65535968
+	h = 2; rows_per_bucket = 0
+	h = 2; rows_left       = 0
+	h = 2; nbuckets        = 0
+	h = 3; memfree         = 65535968
+	h = 3; rows_per_bucket = 0
+	h = 3; rows_left       = 0
+	h = 3; nbuckets        = 0
+	Sorting half-transformed integrals.
+	First half integral transformation complete.
+	Starting second half-transformation.
+	h = 0; memfree         = 65535968
+	h = 0; rows_per_bucket = 10
+	h = 0; rows_left       = 0
+	h = 0; nbuckets        = 1
+	h = 1; memfree         = 65535968
+	h = 1; rows_per_bucket = 0
+	h = 1; rows_left       = 0
+	h = 1; nbuckets        = 0
+	h = 2; memfree         = 65535968
+	h = 2; rows_per_bucket = 0
+	h = 2; rows_left       = 0
+	h = 2; nbuckets        = 0
+	h = 3; memfree         = 65535968
+	h = 3; rows_per_bucket = 0
+	h = 3; rows_left       = 0
+	h = 3; nbuckets        = 0
+	Two-electron integral transformation complete.
+
+   ==> Starting CI iterations <==
+
+    Exact Diagonalization Algorithm
+
+   ==> Energetics <==
+
+    SCF energy =           -2.909854377545122
+    Total CI energy =      -2.909854377545125
+
+   ==> DETCI root 0 information <==
+
+    DETCI Root 0 energy =    -2.909854377545125
+
+   The 7 most important determinants:
+
+    *   1    1.000000  (    0,    0)  1A1X 
+
+
+   ==> DETCI root 1 information <==
+
+    DETCI Root 1 energy =    -2.121292068094189
+
+   The 7 most important determinants:
+
+    *   1   -0.687285  (    0,    1)  1A1A 2A1B 
+    *   2    0.687285  (    1,    0)  1A1B 2A1A 
+    *   3    0.125600  (    2,    0)  1A1B 3A1A 
+    *   4   -0.125600  (    0,    2)  1A1A 3A1B 
+    *   5    0.108920  (    3,    0)  1A1B 4A1A 
+    *   6   -0.108920  (    0,    3)  1A1A 4A1B 
+
+
+   ==> DETCI root 2 information <==
+
+    DETCI Root 2 energy =    -1.880613900279910
+
+   The 7 most important determinants:
+
+    *   1    0.704985  (    0,    1)  1A1A 2A1B 
+    *   2    0.704985  (    1,    0)  1A1B 2A1A 
+    *   3    0.053744  (    2,    0)  1A1B 3A1A 
+    *   4    0.053744  (    0,    2)  1A1A 3A1B 
+    *   5   -0.010349  (    0,    3)  1A1A 4A1B 
+    *   6   -0.010349  (    3,    0)  1A1B 4A1A 
+
+
+   ==> DETCI root 3 information <==
+
+    DETCI Root 3 energy =    -1.377073790197478
+
+   The 7 most important determinants:
+
+    *   1    0.692188  (    2,    0)  1A1B 3A1A 
+    *   2   -0.692188  (    0,    2)  1A1A 3A1B 
+    *   3   -0.112037  (    1,    0)  1A1B 2A1A 
+    *   4    0.112037  (    0,    1)  1A1A 2A1B 
+    *   5   -0.091235  (    3,    0)  1A1B 4A1A 
+    *   6    0.091235  (    0,    3)  1A1A 4A1B 
+
+
+   ==> DETCI root 4 information <==
+
+    DETCI Root 4 energy =    -1.261645122325123
+
+   The 7 most important determinants:
+
+    *   1    0.704655  (    0,    2)  1A1A 3A1B 
+    *   2    0.704655  (    2,    0)  1A1B 3A1A 
+    *   3   -0.054059  (    0,    1)  1A1A 2A1B 
+    *   4   -0.054059  (    1,    0)  1A1B 2A1A 
+    *   5   -0.023227  (    0,    3)  1A1A 4A1B 
+    *   6   -0.023227  (    3,    0)  1A1B 4A1A 
+
+
+   ==> DETCI root 5 information <==
+
+    DETCI Root 5 energy =    -0.978119674293046
+
+   The 7 most important determinants:
+
+    *   1    0.692685  (    3,    0)  1A1B 4A1A 
+    *   2   -0.692685  (    0,    3)  1A1A 4A1B 
+    *   3    0.122828  (    0,    1)  1A1A 2A1B 
+    *   4   -0.122828  (    1,    0)  1A1B 2A1A 
+    *   5   -0.071419  (    0,    2)  1A1A 3A1B 
+    *   6    0.071419  (    2,    0)  1A1B 3A1A 
+
+
+   ==> DETCI root 6 information <==
+
+    DETCI Root 6 energy =    -0.632427506185672
+
+   The 7 most important determinants:
+
+    *   1    0.706649  (    0,    3)  1A1A 4A1B 
+    *   2    0.706649  (    3,    0)  1A1B 4A1A 
+    *   3    0.023949  (    2,    0)  1A1B 3A1A 
+    *   4    0.023949  (    0,    2)  1A1A 3A1B 
+    *   5    0.008548  (    1,    0)  1A1B 2A1A 
+    *   6    0.008548  (    0,    1)  1A1A 2A1B 
+
+		 "A good bug is a dead bug" 
+
+			 - Starship Troopers
+
+		 "I didn't write FORTRAN.  That's the problem."
+
+			 - Edward Valeev
+
+
+Properties will be evaluated at   0.000000,   0.000000,   0.000000 [a0]
+
+Properties computed using the DETCI density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.1748680           -0.5785341           -0.7534021
+ Magnitude           :                                                    0.7534021
+
+ ------------------------------------------------------------------------------------
+
+
+Properties will be evaluated at   0.000000,   0.000000,   0.000000 [a0]
+
+Properties computed using the CI density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.1748680           -0.5785341           -0.7534021
+ Magnitude           :                                                    0.7534021
+
+ ------------------------------------------------------------------------------------
+
+   ===> CI properties for all CI roots <=== 
+
+
+Properties computed using the CI ROOT 0 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.1748680           -0.5785341           -0.7534021
+ Magnitude           :                                                    0.7534021
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 1 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          1.1426571           -0.5785341            0.5641231
+ Magnitude           :                                                    0.5641231
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 2 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          1.3176931           -0.5785341            0.7391590
+ Magnitude           :                                                    0.7391590
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 3 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.7750723           -0.5785341            0.1965382
+ Magnitude           :                                                    0.1965382
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 4 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.8802444           -0.5785341            0.3017103
+ Magnitude           :                                                    0.3017103
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 5 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.0926615           -0.5785341           -0.4858726
+ Magnitude           :                                                    0.4858726
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 6 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.1875465           -0.5785341           -0.7660806
+ Magnitude           :                                                    0.7660806
+
+ ------------------------------------------------------------------------------------
+
+   ===> CI properties for all CI transition density matrices <=== 
+
+
+Properties computed using the CI ROOT 0 -> ROOT 1 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.8473008            0.0000000            0.8473008
+ Magnitude           :                                                    0.8473008
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 2 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.8209868            0.0000000            0.8209868
+ Magnitude           :                                                    0.8209868
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 3 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.3661140            0.0000000            0.3661140
+ Magnitude           :                                                    0.3661140
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 4 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.4366438            0.0000000            0.4366438
+ Magnitude           :                                                    0.4366438
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 5 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.1127819            0.0000000           -0.1127819
+ Magnitude           :                                                    0.1127819
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 6 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.0008461            0.0000000           -0.0008461
+ Magnitude           :                                                    0.0008461
+
+ ------------------------------------------------------------------------------------
+  ## MO-basis OPDM <0| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     2.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    3     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    4    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <1| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <1| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     1.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2     0.00000000000000     0.94472216454847     0.17264567490333     0.14971862708595
+    3    -0.00000000000000     0.17264567490333     0.03155057664713     0.02736071449240
+    4    -0.00000000000000     0.14971862708595     0.02736071449240     0.02372725880441
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <2| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    2     1.40997095369929    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.10748723720948    -0.00000000000000     0.00000000000000    -0.00000000000000
+    4    -0.02069791200538     0.00000000000000    -0.00000000000000     0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <2| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    2    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    3    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <2| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     1.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00000000000000     0.99400904513785     0.07577694117937    -0.01459172736490
+    3     0.00000000000000     0.07577694117937     0.00577675308146    -0.00111238068873
+    4    -0.00000000000000    -0.01459172736490    -0.00111238068873     0.00021420178069
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <3| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <3| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000000    -0.15400258855395    -0.02814359801801    -0.02440617674827
+    3    -0.00000000000000     0.95146103451089     0.17387718697789     0.15078659648134
+    4     0.00000000000000    -0.12540840113250    -0.02291807990174    -0.01987459842395
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <3| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <3| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     1.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000000     0.02510452085418    -0.15510111620270     0.02044327859085
+    3     0.00000000000000    -0.15510111620270     0.95824797402231    -0.12630296139492
+    4    -0.00000000000000     0.02044327859085    -0.12630296139492     0.01664750512351
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <4| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.10811872798406     0.00000000000000    -0.00000000000000     0.00000000000000
+    3     1.40930915177194    -0.00000000000000     0.00000000000000    -0.00000000000000
+    4    -0.04645487478140     0.00000000000000    -0.00000000000000     0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <4| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <4| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000000    -0.07622213300422    -0.00581069168080     0.00111891595897
+    3     0.00000000000000     0.99354248439051     0.07574137354900    -0.01458487840588
+    4    -0.00000000000000    -0.03275001204976    -0.00249665307258     0.00048075945522
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <4| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    3     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    4    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <4| Etu |4> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     1.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.00584482967045    -0.07618635641294     0.00251132098501
+    3    -0.00000000000000    -0.07618635641294     0.99307614263408    -0.03273464008692
+    4     0.00000000000000     0.00251132098501    -0.03273464008692     0.00107902769548
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <5| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    2     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <5| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000000    -0.16883542009309    -0.03085426185961    -0.02675686910754
+    3     0.00000000000000     0.09817094933380     0.01794050191649     0.01555803420893
+    4    -0.00000000000000     0.95214454269158     0.17400209643338     0.15089491817660
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <5| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    3    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <5| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.02752247455352    -0.17003975294751     0.02241228255561
+    3    -0.00000000000000    -0.01600320272514     0.09887122004457    -0.01303183333218
+    4     0.00000000000000    -0.15521253735176     0.95893635778750    -0.12639369459809
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <5| Etu |4> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <5| Etu |5> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     1.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00000000000000     0.03017331459735    -0.01754455870063    -0.17016190567680
+    3     0.00000000000000    -0.01754455870063     0.01020144933056     0.09894224690251
+    4    -0.00000000000000    -0.17016190567680     0.09894224690251     0.95962523607209
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <6| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.01709533221137    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.04789789733298    -0.00000000000000     0.00000000000000    -0.00000000000000
+    4     1.41329881520069    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <6| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    2    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    3    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <6| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00000000000000     0.01205196093093     0.00091876501429    -0.00017691884091
+    3     0.00000000000000     0.03376732199139     0.00257420632623    -0.00049569323212
+    4     0.00000000000000     0.99635513916529     0.07595579249867    -0.01462616725717
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <6| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    4     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <6| Etu |4> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000000    -0.00092416278658     0.01204630406903    -0.00039708075861
+    3    -0.00000000000000    -0.00258932986638     0.03375147253100    -0.00111254541145
+    4    -0.00000000000000    -0.07640203508044     0.99588747722538    -0.03282730974442
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <6| Etu |5> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    3    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## MO-basis OPDM <6| Etu |6> (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     1.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.00014612519171     0.00040941523357     0.01208040637989
+    3     0.00000000000000     0.00040941523357     0.00114710428446     0.03384702077566
+    4     0.00000000000000     0.01208040637989     0.03384702077566     0.99870677052383
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+  ## AO Mux (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+
+
+  ## AO Muy (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+
+
+  ## AO Muz (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     1.16542374170630     0.76718918327655     0.06443851075512     0.39664974787813
+    2     0.76718918327655     1.16542374170630    -0.04668651922076     0.16341148479209
+    3     0.06443851075512    -0.04668651922076    -0.29344482714714    -0.18608737356031
+    4     0.39664974787813     0.16341148479209    -0.18608737356031    -0.29344482714714
+
+
+
+  ## Alpha MO coefficients (Symmetry 0) ##
+  Irrep: 1 Size: 4 x 4
+
+                 1                   2                   3                   4
+
+    1     0.22570756296391     0.37120269232510     1.24177775992044     0.24087275501702
+    2    -0.00302330231399     1.11890016562129    -1.03780148927083    -0.87562338121549
+    3     0.60166135869897    -0.25667369295660     0.08732552594093    -1.17442680027379
+    4     0.37028238307366    -0.79160922884337    -0.20778751681531     1.67841591295588
+
+
+
+  Irrep: 2 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 3 Size: 0 x 0
+
+	(empty)
+
+  Irrep: 4 Size: 0 x 0
+
+	(empty)
+
+
+    Psi4 stopped on: Sunday, 17 August 2025 07:12PM
+    Psi4 wall time for execution: 0:00:00.36
+
+*** Psi4 exiting successfully. Buy a developer a beer!

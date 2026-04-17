@@ -1,0 +1,3287 @@
+
+    -----------------------------------------------------------------------
+          Psi4: An Open-Source Ab Initio Electronic Structure Package
+                               Psi4 1.9.1 release
+
+                         Git: Rev {} zzzzzzz 
+
+
+    D. G. A. Smith, L. A. Burns, A. C. Simmonett, R. M. Parrish,
+    M. C. Schieber, R. Galvelis, P. Kraus, H. Kruse, R. Di Remigio,
+    A. Alenaizan, A. M. James, S. Lehtola, J. P. Misiewicz, M. Scheurer,
+    R. A. Shaw, J. B. Schriber, Y. Xie, Z. L. Glick, D. A. Sirianni,
+    J. S. O'Brien, J. M. Waldrop, A. Kumar, E. G. Hohenstein,
+    B. P. Pritchard, B. R. Brooks, H. F. Schaefer III, A. Yu. Sokolov,
+    K. Patkowski, A. E. DePrince III, U. Bozkaya, R. A. King,
+    F. A. Evangelista, J. M. Turney, T. D. Crawford, C. D. Sherrill,
+    J. Chem. Phys. 152(18) 184108 (2020). https://doi.org/10.1063/5.0006002
+
+                            Additional Code Authors
+    E. T. Seidl, C. L. Janssen, E. F. Valeev, M. L. Leininger,
+    J. F. Gonthier, R. M. Richard, H. R. McAlexander, M. Saitow, X. Wang,
+    P. Verma, M. H. Lechner, A. Jiang, S. Behnle, A. G. Heide,
+    M. F. Herbst, and D. L. Poole
+
+             Previous Authors, Complete List of Code Contributors,
+                       and Citations for Specific Modules
+    https://github.com/psi4/psi4/blob/master/codemeta.json
+    https://github.com/psi4/psi4/graphs/contributors
+    http://psicode.org/psi4manual/master/introduction.html#citing-psifour
+
+    -----------------------------------------------------------------------
+
+
+    Psi4 started on: Sunday, 17 August 2025 08:45PM
+
+    Process ID: 1448545
+    Host:       gnode010.cluster
+    PSIDATADIR: /home/hbhat/psi4conda/share/psi4
+    Memory:     500.0 MiB
+    Threads:    1
+    
+  ==> Input File <==
+
+--------------------------------------------------------------------------
+memory 10 gb
+
+molecule lih {
+H  0.       0.      -0.765
+Li 0.       0.       0.765
+symmetry c1
+no_com
+no_reorient
+}
+
+set {
+    reference rhf
+    basis sto-3g
+    ex_level 1
+    calc_s_squared true
+    num_roots 13
+    num_dets_print 225
+    diag_method rsp
+    print 2
+    dipmom true
+    opdm true
+    tdm true
+}
+
+thisenergy, ciwfn = prop('detci', properties=['DIPOLE', 'TRANSITION_DIPOLE'], return_wfn=True)
+
+for i in range(13):
+    for j in range(i+1):
+        ciop_dm = ciwfn.get_opdm(i,j,'SUM',True)
+        ciop_dm.print_out()
+
+mints = MintsHelper(ciwfn.basisset())
+
+AOdip = mints.ao_dipole()
+AOdip[0].print_out()
+AOdip[1].print_out()
+AOdip[2].print_out()
+
+ciwfn.Ca().print_out()               # Print orbital information
+
+
+
+
+
+--------------------------------------------------------------------------
+
+  Memory set to   9.313 GiB by Python driver.
+   => Libint2 <=
+
+    Primary   basis highest AM E, G, H:  6, 6, 3
+    Auxiliary basis highest AM E, G, H:  7, 7, 4
+    Onebody   basis highest AM E, G, H:  -, -, -
+    Solid Harmonics ordering:            Gaussian
+
+*** tstart() called on gnode010.cluster
+*** at Sun Aug 17 20:45:51 2025
+
+   => Loading Basis Set <=
+
+    Name: STO-3G
+    Role: ORBITAL
+    Keyword: BASIS
+    atoms 1 entry H          line    19 file /home/hbhat/psi4conda/share/psi4/basis/sto-3g.gbs 
+    atoms 2 entry LI         line    31 file /home/hbhat/psi4conda/share/psi4/basis/sto-3g.gbs 
+
+
+         ---------------------------------------------------------
+                                   SCF
+               by Justin Turney, Rob Parrish, Andy Simmonett
+                          and Daniel G. A. Smith
+                              RHF Reference
+                        1 Threads,   9536 MiB Core
+         ---------------------------------------------------------
+
+  ==> Geometry <==
+
+    Molecular point group: c1
+    Full point group: C_inf_v
+
+    Geometry (in Angstrom), charge = 0, multiplicity = 1:
+
+       Center              X                  Y                   Z               Mass       
+    ------------   -----------------  -----------------  -----------------  -----------------
+         H            0.000000000000     0.000000000000    -0.765000000000     1.007825032230
+         LI           0.000000000000     0.000000000000     0.765000000000     7.016003436600
+
+  Running in c1 symmetry.
+
+  Rotational constants: A = ************  B =      3.58998  C =      3.58998 [cm^-1]
+  Rotational constants: A = ************  B = 107624.88320  C = 107624.88320 [MHz]
+  Nuclear repulsion =    1.037602373862745
+
+  Charge       = 0
+  Multiplicity = 1
+  Electrons    = 4
+  Nalpha       = 2
+  Nbeta        = 2
+
+  ==> Algorithm <==
+
+  SCF Algorithm Type is PK.
+  DIIS enabled.
+  MOM disabled.
+  Fractional occupation disabled.
+  Guess Type is SAD.
+  Energy threshold   = 1.00e-10
+  Density threshold  = 1.00e-10
+  Integral threshold = 1.00e-12
+
+  ==> Primary Basis <==
+
+  -AO BASIS SET INFORMATION:
+    Name                   = STO-3G
+    Blend                  = STO-3G
+    Total number of shells = 4
+    Number of primitives   = 12
+    Number of AO           = 6
+    Number of SO           = 6
+    Maximum AM             = 1
+    Spherical Harmonics    = TRUE
+
+  -Contraction Scheme:
+    Atom   Type   All Primitives // Shells:
+   ------ ------ --------------------------
+       1     H     3s // 1s 
+       2    LI     6s 3p // 2s 1p 
+
+  ==> Integral Setup <==
+
+  Using in-core PK algorithm.
+   Calculation information:
+      Number of atoms:                   2
+      Number of AO shells:               4
+      Number of primitives:             12
+      Number of atomic orbitals:         6
+      Number of basis functions:         6
+
+      Integral cutoff                 1.00e-12
+      Number of threads:                 1
+
+  Performing in-core PK
+  Using 462 doubles for integral storage.
+  We computed 55 shell quartets total.
+  Whereas there are 55 unique shell quartets.
+
+  ==> DiskJK: Disk-Based J/K Matrices <==
+
+    J tasked:                  Yes
+    K tasked:                  Yes
+    wK tasked:                  No
+    Memory [MiB]:             7152
+    Schwarz Cutoff:          1E-12
+
+    OpenMP threads:              1
+
+  Minimum eigenvalue in the overlap matrix is 3.2761537264E-01.
+  Reciprocal condition number of the overlap matrix is 1.9190516136E-01.
+    Using symmetric orthogonalization.
+
+  ==> Pre-Iterations <==
+
+  SCF Guess: Superposition of Atomic Densities via on-the-fly atomic UHF (no occupation information).
+
+   -------------------------
+    Irrep   Nso     Nmo    
+   -------------------------
+     A          6       6 
+   -------------------------
+    Total       6       6
+   -------------------------
+
+  ==> Iterations <==
+
+                        Total Energy        Delta E     RMS |[F,P]|
+
+   @RHF iter SAD:    -7.45494385182253   -7.45494e+00   0.00000e+00 
+   @RHF iter   1:    -7.84639961810780   -3.91456e-01   1.83165e-02 DIIS/ADIIS
+   @RHF iter   2:    -7.86292472464723   -1.65251e-02   1.83296e-03 DIIS/ADIIS
+   @RHF iter   3:    -7.86324261622178   -3.17892e-04   5.67274e-04 DIIS/ADIIS
+   @RHF iter   4:    -7.86330697143403   -6.43552e-05   3.32016e-05 DIIS
+   @RHF iter   5:    -7.86330711902807   -1.47594e-07   1.55457e-06 DIIS
+   @RHF iter   6:    -7.86330711928512   -2.57044e-10   2.39024e-08 DIIS
+   @RHF iter   7:    -7.86330711928514   -2.13163e-14   1.85928e-09 DIIS
+   @RHF iter   8:    -7.86330711928513    3.55271e-15   5.83701e-11 DIIS
+  Energy and wave function converged.
+
+
+  ==> Post-Iterations <==
+
+    Orbital Energies [Eh]
+    ---------------------
+
+    Doubly Occupied:                                                      
+
+       1A     -2.347321     2A     -0.291129  
+
+    Virtual:                                                              
+
+       3A      0.078786     4A      0.163837     5A      0.163837  
+       6A      0.566644  
+
+    Final Occupation by Irrep:
+              A 
+    DOCC [     2 ]
+    NA   [     2 ]
+    NB   [     2 ]
+
+  @RHF Final Energy:    -7.86330711928513
+
+   => Energetics <=
+
+    Nuclear Repulsion Energy =              1.0376023738627451
+    One-Electron Energy =                 -12.5249197401365127
+    Two-Electron Energy =                   3.6240102469886346
+    Total Energy =                         -7.8633071192851336
+
+Computation Completed
+
+
+Properties will be evaluated at   0.000000,   0.000000,   0.000000 [a0]
+
+Properties computed using the SCF density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.9859648            2.8912810            1.9053162
+ Magnitude           :                                                    1.9053162
+
+ ------------------------------------------------------------------------------------
+
+*** tstop() called on gnode010.cluster at Sun Aug 17 20:45:51 2025
+Module time:
+	user time   =       0.14 seconds =       0.00 minutes
+	system time =       0.01 seconds =       0.00 minutes
+	total time  =          0 seconds =       0.00 minutes
+Total time:
+	user time   =       0.14 seconds =       0.00 minutes
+	system time =       0.01 seconds =       0.00 minutes
+	total time  =          0 seconds =       0.00 minutes
+ MINTS: Wrapper to libmints.
+   by Justin Turney
+
+   Calculation information:
+      Number of threads:                 1
+      Number of atoms:                   2
+      Number of AO shells:               4
+      Number of SO shells:               4
+      Number of primitives:             12
+      Number of atomic orbitals:         6
+      Number of basis functions:         6
+
+      Number of irreps:                  1
+      Integral cutoff                 1.00e-12
+      Number of functions per irrep: [   6 ]
+
+ OEINTS: Overlap, kinetic, potential, dipole, and quadrupole integrals
+         stored in file 35.
+
+      Computing two-electron integrals...done
+      Computed 83 non-zero two-electron integrals.
+        Stored in file 33.
+
+
+         ---------------------------------------------------------
+                          Configuration Interaction
+                            (a 'D E T C I' module)
+
+                 C. David Sherrill, Daniel G. A. Smith, and
+                              Matt L. Leininger
+         ---------------------------------------------------------
+
+DAVIDSON update not available for OLSEN or MITRUSH iterators
+
+   ==> Parameters <==
+
+    EX LEVEL       =        1      H0 BLOCKSIZE  =     1000
+    VAL EX LEVEL   =        0      H0 GUESS SIZE =     1000
+    H0COUPLINGSIZE =        0      H0 COUPLING   =       NO
+    MAXITER        =       24      NUM PRINT     =      225
+    NUM ROOTS      =       13      ICORE         =        1
+    PRINT LVL      =        2      FCI           =       NO
+    R CONV         = 1.00e-04      MIXED         =      YES
+    E CONV         = 1.00e-08      MIXED4        =      YES
+    R4S            =       NO      REPL OTF      =       NO
+    DIAG METHOD    =      RSP      FOLLOW ROOT   =        0
+    PRECONDITIONER = DAVIDSON      UPDATE        = OLSEN
+    S              =   0.0000      Ms0           =      YES
+    GUESS VECTOR   =  H0BLOCK      OPENTYPE      =     NONE
+    COLLAPSE SIZE  =        1      HD AVG        = EVANGELISTI
+    MAX NUM VECS   =        0      REF SYM       =     AUTO
+    IOPEN        =       NO
+
+    EX ALLOW       =  1 
+    STATE AVERAGE  =  0(1.00) 
+
+   ==> CI Orbital and Space information <==
+
+    RAS1 LVL      =        1      A RAS3 MAX    =        1
+    RAS1 MIN      =        3      B RAS3 MAX    =        1
+    A RAS1 LVL    =        1      RAS4 LVL      =        6
+    A RAS1 MIN    =        1      A RAS4 MAX    =        0
+    A RAS1 MAX    =        2      B RAS4 MAX    =        0
+    B RAS1 LVL    =        1      RAS4 MAX      =        0
+    B RAS1 MIN    =        1      A RAS34 MAX   =        1
+    B RAS1 MAX    =        2      B RAS34 MAX   =        1
+    RAS3 LVL      =        2      RAS34 MAX     =        1
+    RAS3 MAX      =        1
+   ------------------------------------
+               Space    Total     A
+   ------------------------------------
+                 Nso        6     6
+                 Nmo        6     6
+               Ndocc        2     2
+               Nsocc        0     0
+   ------------------------------------
+              CI Spaces
+   ------------------------------------
+        Dropped DOCC        0     0
+                RAS1        2     2
+                RAS2        0     0
+                RAS3        4     4
+                RAS4        0     0
+      Active (total)        6     6
+        Dropped UOCC        0     0
+   ------------------------------------
+
+   ==> Setting up CI strings <==
+
+    There are 9 alpha and 9 beta strings
+    The CI space requires 17 (1.70E+01) determinants and 3 blocks
+    Total H0block size (including coupling): 17
+
+   ==> Transforming CI integrals <==
+
+	Presorting SO-basis two-electron integrals.
+	Sorting File: SO Ints (nn|nn) nbuckets = 1
+	Constructing frozen core operators
+	Starting first half-transformation.
+	h = 0; memfree         = 1249999928
+	h = 0; rows_per_bucket = 21
+	h = 0; rows_left       = 0
+	h = 0; nbuckets        = 1
+	Sorting half-transformed integrals.
+	First half integral transformation complete.
+	Starting second half-transformation.
+	h = 0; memfree         = 1249999928
+	h = 0; rows_per_bucket = 21
+	h = 0; rows_left       = 0
+	h = 0; nbuckets        = 1
+	Two-electron integral transformation complete.
+
+   ==> Starting CI iterations <==
+
+    Exact Diagonalization Algorithm
+
+   ==> Energetics <==
+
+    SCF energy =           -7.863307119285134
+    Total CI energy =      -7.863307119285128
+
+   ==> DETCI root 0 information <==
+
+    DETCI Root 0 energy =    -7.863307119285128
+
+   The 17 most important determinants:
+
+    *   1   -1.000000  (    0,    0)  1AX 2AX 
+    *   2   -0.000000  (    0,    1)  1AX 2AA 3AB 
+    *   3   -0.000000  (    1,    0)  1AX 2AB 3AA 
+    *   4   -0.000000  (    0,    7)  1AX 2AA 6AB 
+    *   5   -0.000000  (    7,    0)  1AX 2AB 6AA 
+
+
+   ==> DETCI root 1 information <==
+
+    DETCI Root 1 energy =    -7.728909491108254
+
+   The 17 most important determinants:
+
+    *   1    0.694520  (    1,    0)  1AX 2AB 3AA 
+    *   2   -0.694520  (    0,    1)  1AX 2AA 3AB 
+    *   3   -0.132757  (    0,    7)  1AX 2AA 6AB 
+    *   4    0.132757  (    7,    0)  1AX 2AB 6AA 
+    *   5    0.003931  (    2,    0)  1AB 2AX 3AA 
+    *   6   -0.003931  (    0,    2)  1AA 2AX 3AB 
+    *   7    0.001415  (    0,    8)  1AA 2AX 6AB 
+    *   8   -0.001415  (    8,    0)  1AB 2AX 6AA 
+
+
+   ==> DETCI root 2 information <==
+
+    DETCI Root 2 energy =    -7.694946820036824
+
+   The 17 most important determinants:
+
+    *   1    0.706667  (    0,    1)  1AX 2AA 3AB 
+    *   2    0.706667  (    1,    0)  1AX 2AB 3AA 
+    *   3   -0.024439  (    7,    0)  1AX 2AB 6AA 
+    *   4   -0.024439  (    0,    7)  1AX 2AA 6AB 
+    *   5    0.004482  (    0,    2)  1AA 2AX 3AB 
+    *   6    0.004482  (    2,    0)  1AB 2AX 3AA 
+    *   7   -0.002021  (    0,    8)  1AA 2AX 6AB 
+    *   8   -0.002021  (    8,    0)  1AB 2AX 6AA 
+    *   9   -0.000000  (    0,    0)  1AX 2AX 
+
+
+   ==> DETCI root 3 information <==
+
+    DETCI Root 3 energy =    -7.681994807589669
+
+   The 17 most important determinants:
+
+    *   1   -0.707100  (    3,    0)  1AX 2AB 4AA 
+    *   2    0.707100  (    0,    3)  1AX 2AA 4AB 
+    *   3   -0.002657  (    5,    0)  1AX 2AB 5AA 
+    *   4    0.002657  (    0,    5)  1AX 2AA 5AB 
+    *   5   -0.001652  (    4,    0)  1AB 2AX 4AA 
+    *   6    0.001652  (    0,    4)  1AA 2AX 4AB 
+    *   7   -0.000006  (    6,    0)  1AB 2AX 5AA 
+    *   8    0.000006  (    0,    6)  1AA 2AX 5AB 
+
+
+   ==> DETCI root 4 information <==
+
+    DETCI Root 4 energy =    -7.681994807589660
+
+   The 17 most important determinants:
+
+    *   1    0.707100  (    0,    5)  1AX 2AA 5AB 
+    *   2   -0.707100  (    5,    0)  1AX 2AB 5AA 
+    *   3   -0.002657  (    0,    3)  1AX 2AA 4AB 
+    *   4    0.002657  (    3,    0)  1AX 2AB 4AA 
+    *   5    0.001652  (    0,    6)  1AA 2AX 5AB 
+    *   6   -0.001652  (    6,    0)  1AB 2AX 5AA 
+    *   7   -0.000006  (    0,    4)  1AA 2AX 4AB 
+    *   8    0.000006  (    4,    0)  1AB 2AX 4AA 
+
+
+   ==> DETCI root 5 information <==
+
+    DETCI Root 5 energy =    -7.634557072371134
+
+   The 17 most important determinants:
+
+    *   1    0.706755  (    0,    3)  1AX 2AA 4AB 
+    *   2    0.706755  (    3,    0)  1AX 2AB 4AA 
+    *   3   -0.021082  (    5,    0)  1AX 2AB 5AA 
+    *   4   -0.021082  (    0,    5)  1AX 2AA 5AB 
+    *   5    0.007274  (    4,    0)  1AB 2AX 4AA 
+    *   6    0.007274  (    0,    4)  1AA 2AX 4AB 
+    *   7   -0.000217  (    0,    6)  1AA 2AX 5AB 
+    *   8   -0.000217  (    6,    0)  1AB 2AX 5AA 
+
+
+   ==> DETCI root 6 information <==
+
+    DETCI Root 6 energy =    -7.634557072371134
+
+   The 17 most important determinants:
+
+    *   1    0.706755  (    5,    0)  1AX 2AB 5AA 
+    *   2    0.706755  (    0,    5)  1AX 2AA 5AB 
+    *   3    0.021082  (    0,    3)  1AX 2AA 4AB 
+    *   4    0.021082  (    3,    0)  1AX 2AB 4AA 
+    *   5    0.007274  (    6,    0)  1AB 2AX 5AA 
+    *   6    0.007274  (    0,    6)  1AA 2AX 5AB 
+    *   7    0.000217  (    0,    4)  1AA 2AX 4AB 
+    *   8    0.000217  (    4,    0)  1AB 2AX 4AA 
+
+
+   ==> DETCI root 7 information <==
+
+    DETCI Root 7 energy =    -7.452202893433473
+
+   The 17 most important determinants:
+
+    *   1   -0.694529  (    7,    0)  1AX 2AB 6AA 
+    *   2    0.694529  (    0,    7)  1AX 2AA 6AB 
+    *   3   -0.132745  (    0,    1)  1AX 2AA 3AB 
+    *   4    0.132745  (    1,    0)  1AX 2AB 3AA 
+    *   5   -0.002675  (    0,    2)  1AA 2AX 3AB 
+    *   6    0.002675  (    2,    0)  1AB 2AX 3AA 
+    *   7   -0.001015  (    0,    8)  1AA 2AX 6AB 
+    *   8    0.001015  (    8,    0)  1AB 2AX 6AA 
+
+
+   ==> DETCI root 8 information <==
+
+    DETCI Root 8 energy =    -7.214939453327991
+
+   The 17 most important determinants:
+
+    *   1   -0.706681  (    0,    7)  1AX 2AA 6AB 
+    *   2   -0.706681  (    7,    0)  1AX 2AB 6AA 
+    *   3   -0.024445  (    1,    0)  1AX 2AB 3AA 
+    *   4   -0.024445  (    0,    1)  1AX 2AA 3AB 
+    *   5    0.001480  (    0,    2)  1AA 2AX 3AB 
+    *   6    0.001480  (    2,    0)  1AB 2AX 3AA 
+    *   7    0.001315  (    8,    0)  1AB 2AX 6AA 
+    *   8    0.001315  (    0,    8)  1AA 2AX 6AB 
+    *   9    0.000000  (    0,    0)  1AX 2AX 
+
+
+   ==> DETCI root 9 information <==
+
+    DETCI Root 9 energy =    -5.833582045533706
+
+   The 17 most important determinants:
+
+    *   1   -0.706697  (    0,    2)  1AA 2AX 3AB 
+    *   2    0.706697  (    2,    0)  1AB 2AX 3AA 
+    *   3    0.023584  (    0,    8)  1AA 2AX 6AB 
+    *   4   -0.023584  (    8,    0)  1AB 2AX 6AA 
+    *   5    0.004400  (    0,    1)  1AX 2AA 3AB 
+    *   6   -0.004400  (    1,    0)  1AX 2AB 3AA 
+    *   7    0.001846  (    7,    0)  1AX 2AB 6AA 
+    *   8   -0.001846  (    0,    7)  1AX 2AA 6AB 
+
+
+   ==> DETCI root 10 information <==
+
+    DETCI Root 10 energy =    -5.790738825108085
+
+   The 17 most important determinants:
+
+    *   1   -0.706475  (    2,    0)  1AB 2AX 3AA 
+    *   2   -0.706475  (    0,    2)  1AA 2AX 3AB 
+    *   3    0.029501  (    8,    0)  1AB 2AX 6AA 
+    *   4    0.029501  (    0,    8)  1AA 2AX 6AB 
+    *   5    0.004511  (    1,    0)  1AX 2AB 3AA 
+    *   6    0.004511  (    0,    1)  1AX 2AA 3AB 
+    *   7   -0.001581  (    0,    7)  1AX 2AA 6AB 
+    *   8   -0.001581  (    7,    0)  1AX 2AB 6AA 
+    *   9   -0.000000  (    0,    0)  1AX 2AX 
+
+
+   ==> DETCI root 11 information <==
+
+    DETCI Root 11 energy =    -5.748450558485729
+
+   The 17 most important determinants:
+
+    *   1   -0.581392  (    0,    4)  1AA 2AX 4AB 
+    *   2    0.581392  (    4,    0)  1AB 2AX 4AA 
+    *   3    0.402468  (    6,    0)  1AB 2AX 5AA 
+    *   4   -0.402468  (    0,    6)  1AA 2AX 5AB 
+    *   5    0.001359  (    0,    3)  1AX 2AA 4AB 
+    *   6   -0.001359  (    3,    0)  1AX 2AB 4AA 
+    *   7   -0.000940  (    5,    0)  1AX 2AB 5AA 
+    *   8    0.000940  (    0,    5)  1AX 2AA 5AB 
+
+
+   ==> DETCI root 12 information <==
+
+    DETCI Root 12 energy =    -5.748450558485726
+
+   The 17 most important determinants:
+
+    *   1    0.581392  (    0,    6)  1AA 2AX 5AB 
+    *   2   -0.581392  (    6,    0)  1AB 2AX 5AA 
+    *   3   -0.402468  (    0,    4)  1AA 2AX 4AB 
+    *   4    0.402468  (    4,    0)  1AB 2AX 4AA 
+    *   5   -0.001359  (    0,    5)  1AX 2AA 5AB 
+    *   6    0.001359  (    5,    0)  1AX 2AB 5AA 
+    *   7    0.000940  (    0,    3)  1AX 2AA 4AB 
+    *   8   -0.000940  (    3,    0)  1AX 2AB 4AA 
+
+		 "A good bug is a dead bug" 
+
+			 - Starship Troopers
+
+		 "I didn't write FORTRAN.  That's the problem."
+
+			 - Edward Valeev
+
+
+Properties will be evaluated at   0.000000,   0.000000,   0.000000 [a0]
+
+Properties computed using the DETCI density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.9859648            2.8912810            1.9053162
+ Magnitude           :                                                    1.9053162
+
+ ------------------------------------------------------------------------------------
+
+
+Properties will be evaluated at   0.000000,   0.000000,   0.000000 [a0]
+
+Properties computed using the CI density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.9859648            2.8912810            1.9053162
+ Magnitude           :                                                    1.9053162
+
+ ------------------------------------------------------------------------------------
+
+   ===> CI properties for all CI roots <=== 
+
+
+Properties computed using the CI ROOT 0 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.9859648            2.8912810            1.9053162
+ Magnitude           :                                                    1.9053162
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 1 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -4.5509096            2.8912810           -1.6596286
+ Magnitude           :                                                    1.6596286
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 2 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -5.0905242            2.8912810           -2.1992432
+ Magnitude           :                                                    2.1992432
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 3 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -3.3856632            2.8912810           -0.4943822
+ Magnitude           :                                                    0.4943822
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 4 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -3.3856632            2.8912810           -0.4943822
+ Magnitude           :                                                    0.4943822
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 5 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -3.3835976            2.8912810           -0.4923167
+ Magnitude           :                                                    0.4923167
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 6 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -3.3835976            2.8912810           -0.4923167
+ Magnitude           :                                                    0.4923167
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 7 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -2.0906898            2.8912810            0.8005911
+ Magnitude           :                                                    0.8005911
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 8 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -1.5510352            2.8912810            1.3402458
+ Magnitude           :                                                    1.3402458
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 9 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -2.6894218            2.8912810            0.2018592
+ Magnitude           :                                                    0.2018592
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 10 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -2.7034694            2.8912810            0.1878116
+ Magnitude           :                                                    0.1878116
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 11 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.9845649            2.8912810            1.9067161
+ Magnitude           :                                                    1.9067161
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 12 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.9845649            2.8912810            1.9067161
+ Magnitude           :                                                    1.9067161
+
+ ------------------------------------------------------------------------------------
+
+   ===> CI properties for all CI transition density matrices <=== 
+
+
+Properties computed using the CI ROOT 0 -> ROOT 1 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.7216355            0.0000000           -0.7216355
+ Magnitude           :                                                    0.7216355
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 2 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.5272751            0.0000000           -0.5272751
+ Magnitude           :                                                    0.5272751
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 3 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -1.3761063            0.0000000           -1.3761063
+ Dipole Y            :         -0.0051713            0.0000000           -0.0051713
+ Dipole Z            :         -0.0000000            0.0000000           -0.0000000
+ Magnitude           :                                                    1.3761161
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 4 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0051713            0.0000000            0.0051713
+ Dipole Y            :         -1.3761063            0.0000000           -1.3761063
+ Dipole Z            :         -0.0000000            0.0000000           -0.0000000
+ Magnitude           :                                                    1.3761161
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 5 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          1.3731161            0.0000000            1.3731161
+ Dipole Y            :         -0.0409599            0.0000000           -0.0409599
+ Dipole Z            :          0.0000000            0.0000000            0.0000000
+ Magnitude           :                                                    1.3737268
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 6 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0409599            0.0000000            0.0409599
+ Dipole Y            :          1.3731161            0.0000000            1.3731161
+ Dipole Z            :          0.0000000            0.0000000            0.0000000
+ Magnitude           :                                                    1.3737268
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 7 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.7952360            0.0000000            0.7952360
+ Magnitude           :                                                    0.7952360
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 8 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.9352904            0.0000000            0.9352904
+ Magnitude           :                                                    0.9352904
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 9 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.2132187            0.0000000            0.2132187
+ Magnitude           :                                                    0.2132187
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 10 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.2148996            0.0000000           -0.2148996
+ Magnitude           :                                                    0.2148996
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 11 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.2424265            0.0000000           -0.2424265
+ Dipole Y            :         -0.1678195            0.0000000           -0.1678195
+ Dipole Z            :         -0.0000000            0.0000000           -0.0000000
+ Magnitude           :                                                    0.2948457
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 12 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.1678195            0.0000000           -0.1678195
+ Dipole Y            :          0.2424265            0.0000000            0.2424265
+ Dipole Z            :          0.0000000            0.0000000            0.0000000
+ Magnitude           :                                                    0.2948457
+
+ ------------------------------------------------------------------------------------
+  ## MO-basis OPDM <0| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     2.00000000000000    -0.00000000000000     0.00000000000013     0.00000000000000     0.00000000000000
+    2    -0.00000000000000     2.00000000000000     0.00000000000660     0.00000000000000     0.00000000000002
+    3     0.00000000000013     0.00000000000660     0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000002     0.00000000000000     0.00000000000000     0.00000000000000
+    6    -0.00000000000013     0.00000000000256     0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000013
+    2     0.00000000000256
+    3     0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <1| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    2     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3     0.00000000000000    -0.00000000000003     0.00000000000000    -0.00000000000000    -0.00000000000002
+    4    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <1| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.99996509480804     0.00508404908660    -0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00508404908660     1.00003490519196     0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000     0.00000000000000     0.96474727957101    -0.00000000000000     0.00000000000001
+    4     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000001    -0.00000000000000     0.00000000000000
+    6    -0.00000000000000    -0.00000000000000     0.18439335593474    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.18439335593474
+    4    -0.00000000000000
+    5     0.00000000000000
+    6     0.03525272042899
+
+
+
+  ## MO-basis OPDM <2| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000010     0.00000000000000     0.00000000000000     0.00000000000000
+    2    -0.00000000000002     0.00000000000460     0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00896471429390    -1.41333441992264    -0.00000000000466    -0.00000000000000    -0.00000000000002
+    4     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    5    -0.00000000000000     0.00000000000002     0.00000000000000     0.00000000000000     0.00000000000000
+    6    -0.00404144761911     0.04887860534746     0.00000000000016     0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000181
+    4    -0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000006
+
+
+
+  ## MO-basis OPDM <2| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    5     0.00000000000000    -0.00000000000000    -0.00000000000005     0.00000000000000    -0.00000000000000
+    6     0.00000000000000    -0.00000000000000    -0.00000000000001     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000001
+    4     0.00000000000000
+    5    -0.00000000000001
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <2| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.99995165029939     0.00643383979977     0.00000000000004     0.00000000000000    -0.00000000000000
+    2     0.00643383979977     1.00004834970061    -0.00000000000650    -0.00000000000000     0.00000000000000
+    3     0.00000000000004    -0.00000000000650     0.99879727432021     0.00000000000000    -0.00000000000001
+    4     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    5    -0.00000000000000     0.00000000000000    -0.00000000000001    -0.00000000000000     0.00000000000000
+    6    -0.00000000000002     0.00000000000022    -0.03455902287931    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000002
+    2     0.00000000000022
+    3    -0.03455902287931
+    4    -0.00000000000000
+    5     0.00000000000000
+    6     0.00120272567979
+
+
+
+  ## MO-basis OPDM <3| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    2     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000010    -0.00000000000000     0.00000000000000     0.00000000000002
+    5    -0.00000000000000     0.00000000000002    -0.00000000000000     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <3| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    4     0.00000000000000    -0.00000000000000    -0.98220313781489     0.00000000000000    -0.00000000000001
+    5     0.00000000000000    -0.00000000000000    -0.00369107731008     0.00000000000000    -0.00000000000000
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4    -0.18773989647673
+    5    -0.00070551848737
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <3| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    3    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000    -0.00000000000005    -0.00000000000000     0.00000000000005
+    5    -0.00000000000000     0.00000000000000    -0.00000000000002    -0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000001
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <3| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.99999454007288     0.00233664231629     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00233664231629     1.00000545992713     0.00000000000000    -0.00000000000000    -0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000    -0.00000000000000     0.00000000000000     0.99998587795745     0.00375790408565
+    5     0.00000000000000    -0.00000000000000     0.00000000000000     0.00375790408565     0.00001412204255
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <4| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    2     0.00000000000000    -0.00000000000002    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3    -0.00000000000000     0.00000000000008     0.00000000000000     0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    5     0.00000000000000    -0.00000000000009    -0.00000000000000     0.00000000000000     0.00000000000002
+    6     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <4| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    2    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    3     0.00000000000000    -0.00000000000000     0.00000000000001     0.00000000000000    -0.00000000000000
+    4     0.00000000000000    -0.00000000000000     0.00369107731008    -0.00000000000000     0.00000000000000
+    5    -0.00000000000000     0.00000000000000    -0.98220313781489     0.00000000000000    -0.00000000000001
+    6    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00070551848737
+    5    -0.18773989647673
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <4| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000000     0.00000000000000     0.00000000000003     0.00000000000000    -0.00000000000000
+    3    -0.00000000000000     0.00000000000000    -0.00000000000005    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    5     0.00000000000000    -0.00000000000000     0.00000000000009    -0.00000000000000     0.00000000000005
+    6     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <4| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    3     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000001    -0.00000000000000
+    4     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00375790408565    -0.00001412204255
+    5    -0.00000000000000     0.00000000000000     0.00000000000000     0.99998587795745     0.00375790408565
+    6    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <4| Etu |4> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.99999454007288     0.00233664231629     0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00233664231629     1.00000545992713    -0.00000000000000    -0.00000000000000     0.00000000000000
+    3     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000001
+    4     0.00000000000000    -0.00000000000000     0.00000000000000     0.00001412204255    -0.00375790408565
+    5    -0.00000000000000     0.00000000000000    -0.00000000000001    -0.00375790408565     0.99998587795745
+    6    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <5| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    4     0.01454886982889    -1.41350991221844    -0.00000000000466    -0.00000000000000    -0.00000000000002
+    5    -0.00043399068970     0.04216479691632     0.00000000000014     0.00000000000000     0.00000000000000
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000181
+    5     0.00000000000005
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <5| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000    -0.00000000000004    -0.00000000000000     0.00000000000000
+    5     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000002
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <5| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    4     0.00000000000007    -0.00000000000650     0.99894631915073     0.00000000000000    -0.00000000000001
+    5    -0.00000000000000     0.00000000000019    -0.02979842469671    -0.00000000000000     0.00000000000000
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4    -0.03457459582469
+    5     0.00103135520933
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <5| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    3    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    4    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000002
+    5     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <5| Etu |4> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    3    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    4    -0.00000000000000     0.00000000000003    -0.00000000000005    -0.00000000000000     0.00000000000013
+    5     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <5| Etu |5> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.99989407101939     0.01029163542200     0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.01029163542200     1.00010592898061     0.00000000000000    -0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    4     0.00000000000000    -0.00000000000000    -0.00000000000000     0.99911097077654    -0.02980333623097
+    5    -0.00000000000000     0.00000000000000     0.00000000000000    -0.02980333623097     0.00088902922346
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <6| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2    -0.00000000000000     0.00000000000002     0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000000    -0.00000000000002    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    4     0.00043399068970    -0.04216479691632    -0.00000000000014    -0.00000000000000    -0.00000000000000
+    5     0.01454886982889    -1.41350991221844    -0.00000000000466    -0.00000000000000    -0.00000000000002
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000005
+    5    -0.00000000000181
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <6| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000    -0.00000000000002    -0.00000000000000     0.00000000000000
+    5    -0.00000000000000     0.00000000000000     0.00000000000009    -0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000001
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <6| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00000000000000    -0.00000000000000    -0.00000000000002    -0.00000000000000     0.00000000000000
+    3     0.00000000000000    -0.00000000000000     0.00000000000001     0.00000000000000     0.00000000000000
+    4     0.00000000000000    -0.00000000000019     0.02979842469671     0.00000000000000    -0.00000000000000
+    5     0.00000000000007    -0.00000000000650     0.99894631915073     0.00000000000000    -0.00000000000001
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00103135520933
+    5    -0.03457459582469
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <6| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    3    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000002    -0.00000000000000
+    5    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000013    -0.00000000000002
+    6     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <6| Etu |4> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    3    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000002
+    5    -0.00000000000000     0.00000000000003    -0.00000000000005    -0.00000000000000    -0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <6| Etu |5> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000002     0.00000000000000
+    3     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000001    -0.00000000000000
+    4     0.00000000000000    -0.00000000000000    -0.00000000000000     0.02980333623097    -0.00088902922346
+    5     0.00000000000000    -0.00000000000000    -0.00000000000000     0.99911097077654    -0.02980333623097
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <6| Etu |6> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.99989407101940     0.01029163542200     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.01029163542200     1.00010592898061    -0.00000000000000    -0.00000000000000    -0.00000000000002
+    3     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000001
+    4     0.00000000000000    -0.00000000000000     0.00000000000000     0.00088902922346     0.02980333623097
+    5     0.00000000000000    -0.00000000000002     0.00000000000001     0.02980333623097     0.99911097077655
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <7| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    3    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    4    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    6    -0.00000000000000     0.00000000000002    -0.00000000000000     0.00000000000000     0.00000000000002
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <7| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00001815583029     0.00300932397344     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2     0.00398477659072     0.00001815583029    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.00000000000000    -0.00000000000000     0.18440970178505    -0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    6     0.00000000000000    -0.00000000000000    -0.96472069447679     0.00000000000000    -0.00000000000001
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3     0.03523812279940
+    4     0.00000000000000
+    5    -0.00000000000000
+    6    -0.18440970178505
+
+
+
+  ## MO-basis OPDM <7| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000     0.00000000000000    -0.00000000000001     0.00000000000000    -0.00000000000001
+    4    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    6    -0.00000000000000     0.00000000000000     0.00000000000001    -0.00000000000000     0.00000000000005
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000001
+
+
+
+  ## MO-basis OPDM <7| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    2     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.18773731892178    -0.00070550880103
+    4     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    6     0.00000000000000    -0.00000000000000     0.00000000000000     0.98219930918025     0.00369106292224
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <7| Etu |4> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.00000000000000    -0.00000000000000     0.00000000000000     0.00070550880103    -0.18773731892178
+    4     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    6     0.00000000000000    -0.00000000000000    -0.00000000000001    -0.00369106292224     0.98219930918025
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <7| Etu |5> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000002    -0.00000000000000
+    4    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    6    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000005     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <7| Etu |6> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000001
+    4    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    6    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000002    -0.00000000000008
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <7| Etu |7> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.99998363236428    -0.00069909236882    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00069909236882     1.00001636763572     0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000     0.00000000000000     0.03525698147119     0.00000000000000    -0.00000000000000
+    4    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    6    -0.00000000000000     0.00000000000000    -0.18438559621360    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3    -0.18438559621360
+    4    -0.00000000000000
+    5     0.00000000000000
+    6     0.96474301852881
+
+
+
+  ## MO-basis OPDM <8| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000009    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000001    -0.00000000000197    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3     0.00296009879004     0.04889083972395     0.00000000000016     0.00000000000000     0.00000000000000
+    4    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    6     0.00262914546528     1.41336266089081     0.00000000000466     0.00000000000000     0.00000000000002
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000006
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000181
+
+
+
+  ## MO-basis OPDM <8| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    2    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000    -0.00000000000000    -0.00000000000001     0.00000000000000    -0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000001     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000001
+
+
+
+  ## MO-basis OPDM <8| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000795544313     0.00263686937554    -0.00000000000002    -0.00000000000000     0.00000000000000
+    2     0.00202755027137     0.00000795544313     0.00000000000279     0.00000000000000    -0.00000000000000
+    3     0.00000000000001     0.00000000000022    -0.03453628508042    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    6     0.00000000000001     0.00000000000650    -0.99876526346625    -0.00000000000000     0.00000000000001
+
+                 6
+
+    1     0.00000000000001
+    2    -0.00000000000010
+    3     0.00118887648788
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.03453628508042
+
+
+
+  ## MO-basis OPDM <8| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    3    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000001     0.00000000000000
+    4     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000005     0.00000000000002
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <8| Etu |4> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    6    -0.00000000000000    -0.00000000000003     0.00000000000005     0.00000000000000    -0.00000000000008
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <8| Etu |5> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000003     0.00000000000000
+    2    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000279    -0.00000000000008
+    3     0.00000000000000     0.00000000000000     0.00000000000000    -0.03453231023725     0.00103009383636
+    4    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000    -0.99888193981673     0.02979650427046
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <8| Etu |6> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000003
+    2    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000008     0.00000000000279
+    3     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00103009383636    -0.03453231023725
+    4    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000002    -0.00000000000001    -0.02979650427046    -0.99888193981673
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <8| Etu |7> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000001    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000001
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <8| Etu |8> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.99999216270464    -0.00193032887310    -0.00000000000001     0.00000000000000     0.00000000000000
+    2    -0.00193032887310     1.00000783729536    -0.00000000000010     0.00000000000000     0.00000000000000
+    3    -0.00000000000001    -0.00000000000010     0.00119953819688    -0.00000000000000    -0.00000000000000
+    4     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    6    -0.00000000000001    -0.00000000000279     0.03455413492787    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000001
+    2    -0.00000000000279
+    3     0.03455413492787
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.99880046180312
+
+
+
+  ## MO-basis OPDM <9| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    3    -0.00000000000004    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    4     0.00000000000001    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    6     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <9| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00562228116316    -0.00003981868057     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2     0.97536891708309     0.00562228116316    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.00000000000000     0.00000000000000    -0.00055693025569    -0.00000000000000    -0.00000000000000
+    4    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    6    -0.00000000000000     0.00000000000000     0.00237897101305     0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3    -0.00316860909120
+    4     0.00000000000000
+    5     0.00000000000000
+    6     0.00055693025569
+
+
+
+  ## MO-basis OPDM <9| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000005    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    4     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    6     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <9| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000001     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00388789372158     0.00001461053803
+    4    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    6    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00253288784038    -0.00000951848398
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <9| Etu |4> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2     0.00000000000001     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000    -0.00001461053803     0.00388789372158
+    4    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    6    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000951848398    -0.00253288784038
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <9| Etu |5> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00000000000001    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    6     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <9| Etu |6> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    4     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    6     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <9| Etu |7> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00373269673131    -0.00001979497258    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2     0.22038176284435     0.00373269673131     0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000    -0.00000000000000     0.00261226093587    -0.00000000000000     0.00000000000000
+    4     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    6     0.00000000000000    -0.00000000000000     0.00036396786485     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3     0.00754645396578
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6    -0.00261226093587
+
+
+
+  ## MO-basis OPDM <9| Etu |8> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000001    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    3     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    4    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    6    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <9| Etu |9> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.00004554516391    -0.00630671006324    -0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00630671006324     1.99995445483609    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3    -0.00000000000000    -0.00000000000000     0.99888073058911     0.00000000000001    -0.00000000000000
+    4     0.00000000000000    -0.00000000000000     0.00000000000001     0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    6     0.00000000000000    -0.00000000000000    -0.03335038454263    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3    -0.03335038454263
+    4    -0.00000000000000
+    5     0.00000000000000
+    6     0.00111926941089
+
+
+
+  ## MO-basis OPDM <10| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000010     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000459     0.00000000000003     0.00000000000000     0.00000000000000     0.00000000000000
+    3    -1.41294991273446    -0.00902165157700    -0.00000000000012    -0.00000000000000    -0.00000000000000
+    4     0.00000000000001    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    5    -0.00000000000001    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    6     0.05900134298512     0.00316155538749     0.00000000000001     0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000008
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <10| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000005    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <10| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00645257155819     0.00004682689467     0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.99992732432652    -0.00645257155819    -0.00000000000017    -0.00000000000000     0.00000000000000
+    3    -0.00000000000650    -0.00000000000004     0.00004195920953    -0.00000000000000     0.00000000000000
+    4     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    6     0.00000000000027     0.00000000000001    -0.00196970243340     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000001
+    3     0.00263469865686
+    4    -0.00000000000000
+    5     0.00000000000000
+    6    -0.00004195920953
+
+
+
+  ## MO-basis OPDM <10| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000001     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <10| Etu |4> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2     0.00000000000006     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.00000000000003     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    4    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <10| Etu |5> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00000000000001    -0.00000000000000     0.00000000000000    -0.00000000000017     0.00000000000001
+    3    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00390231521323     0.00011640550027
+    4     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000    -0.00180524350971     0.00005385015366
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <10| Etu |6> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2    -0.00000000000002    -0.00000000000000    -0.00000000000000    -0.00000000000001    -0.00000000000017
+    3    -0.00000000000002    -0.00000000000000    -0.00000000000000    -0.00011640550027    -0.00390231521322
+    4     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00005385015366    -0.00180524350971
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <10| Etu |7> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000001     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    4     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <10| Etu |8> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00201367410686     0.00000919639545     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00715499369806    -0.00201367410686     0.00000000000001    -0.00000000000000    -0.00000000000000
+    3     0.00000000000279     0.00000000000002    -0.00231177372418     0.00000000000000     0.00000000000000
+    4    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    6    -0.00000000000012    -0.00000000000001     0.00016461045085    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000017
+    3    -0.00823285816712
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.00231177372418
+
+
+
+  ## MO-basis OPDM <10| Etu |9> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    4     0.00000000000000    -0.00000000000000     0.00000000000001     0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000001    -0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <10| Etu |10> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.00004569281482    -0.00646683891111    -0.00000000000017     0.00000000000000    -0.00000000000000
+    2    -0.00646683891111     1.99995430718518    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3    -0.00000000000017    -0.00000000000000     0.99825442304674    -0.00000000000001     0.00000000000001
+    4     0.00000000000000    -0.00000000000000    -0.00000000000001     0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000001    -0.00000000000000     0.00000000000000
+    6     0.00000000000001     0.00000000000000    -0.04169723243659     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000001
+    2     0.00000000000000
+    3    -0.04169723243659
+    4     0.00000000000000
+    5    -0.00000000000000
+    6     0.00174557695326
+
+
+
+  ## MO-basis OPDM <11| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000001     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    4    -0.00000000000004    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    5     0.00000000000002     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <11| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    2    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00268344351902    -0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00185761050095    -0.00000000000000    -0.00000000000000
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4    -0.00200626214432
+    5    -0.00138883252081
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <11| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000003    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    4    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <11| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00192620638109     0.00000450087991     0.00000000000000     0.00000000000000     0.00000000000000
+    2    -0.82434348240689    -0.00192620638109     0.00000000000000    -0.00000000000000    -0.00000000000000
+    3    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <11| Etu |4> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00132273439953     0.00000309077405     0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.56608029747453    -0.00132273439953    -0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <11| Etu |5> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000009     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    4    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <11| Etu |6> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    2     0.00000000000003     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <11| Etu |7> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    4    -0.00000000000000    -0.00000000000000     0.00274954508282    -0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00190336922782    -0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4     0.00306672135869
+    5     0.00212293411768
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <11| Etu |8> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    3    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <11| Etu |9> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000    -0.00000000000000     0.82174837385489     0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.56885430887434     0.00000000000000    -0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4    -0.02742864655742
+    5    -0.01898744710328
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <11| Etu |10> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000    -0.00000000000000     0.00000000000001     0.00000000000001    -0.00000000000001
+    5     0.00000000000000     0.00000000000000    -0.00000000000003     0.00000000000001    -0.00000000000001
+    6     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <11| Etu |11> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.00000545992713    -0.00233664231629    -0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00233664231629     1.99999454007288     0.00000000000000     0.00000000000000    -0.00000000000000
+    3    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    4     0.00000000000000     0.00000000000000    -0.00000000000000     0.67603727671046     0.46798597971346
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.46798597971346     0.32396272328954
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |0> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000001     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000002     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4    -0.00000000000011    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    5     0.00000000000012     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |1> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000001    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    3    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00185761050095    -0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00268344351902     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4    -0.00138883252081
+    5     0.00200626214432
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |2> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00000000000006     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    4    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |3> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00132273439953     0.00000309077405    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.56608029747453    -0.00132273439953    -0.00000000000000     0.00000000000000     0.00000000000000
+    3    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |4> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00192620638109    -0.00000450087991    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2     0.82434348240689     0.00192620638109     0.00000000000000     0.00000000000000    -0.00000000000000
+    3    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    5    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |5> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000012    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |6> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000002    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    4    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4     0.00000000000000
+    5    -0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |7> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000    -0.00000000000000     0.00190336922782    -0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.00274954508282     0.00000000000000    -0.00000000000000
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2     0.00000000000000
+    3    -0.00000000000000
+    4     0.00212293411768
+    5    -0.00306672135869
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |8> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    2    -0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    3    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    4     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |9> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    2     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    4    -0.00000000000000    -0.00000000000000     0.56885430887434     0.00000000000000    -0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.82174837385489    -0.00000000000000     0.00000000000000
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2    -0.00000000000000
+    3     0.00000000000000
+    4    -0.01898744710328
+    5     0.02742864655742
+    6     0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |10> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000
+    2    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+    3     0.00000000000000     0.00000000000000    -0.00000000000001     0.00000000000000    -0.00000000000000
+    4    -0.00000000000000    -0.00000000000000     0.00000000000006     0.00000000000001    -0.00000000000001
+    5     0.00000000000000     0.00000000000000    -0.00000000000006    -0.00000000000001     0.00000000000001
+    6    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |11> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+    3    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000
+    4     0.00000000000000     0.00000000000000    -0.00000000000000     0.46798597971346     0.32396272328954
+    5    -0.00000000000000    -0.00000000000000     0.00000000000000    -0.67603727671046    -0.46798597971346
+    6     0.00000000000000     0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6    -0.00000000000000
+
+
+
+  ## MO-basis OPDM <12| Etu |12> (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.00000545992712    -0.00233664231629     0.00000000000000    -0.00000000000000     0.00000000000000
+    2    -0.00233664231629     1.99999454007287     0.00000000000000    -0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000    -0.00000000000000     0.00000000000000
+    4    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.32396272328954    -0.46798597971346
+    5     0.00000000000000     0.00000000000000     0.00000000000000    -0.46798597971346     0.67603727671046
+    6    -0.00000000000000    -0.00000000000000    -0.00000000000000    -0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.00000000000000
+    2    -0.00000000000000
+    3    -0.00000000000000
+    4    -0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## AO Mux (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -0.34726358319414
+    2     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -0.14723997517578
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -1.80329831952847
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5    -0.34726358319414    -0.14723997517578    -1.80329831952847     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## AO Muy (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    6    -0.34726358319414    -0.14723997517578    -1.80329831952847     0.00000000000000     0.00000000000000
+
+                 6
+
+    1    -0.34726358319414
+    2    -0.14723997517578
+    3    -1.80329831952847
+    4     0.00000000000000
+    5     0.00000000000000
+    6     0.00000000000000
+
+
+
+  ## AO Muz (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     1.44564048597524    -0.06986589445209     0.34160114354748    -0.66714289235088     0.00000000000000
+    2    -0.06986589445209    -1.44564048597524    -0.34859690560396    -0.14723997517578     0.00000000000000
+    3     0.34160114354748    -0.34859690560396    -1.44564048597524    -1.80329831952847     0.00000000000000
+    4    -0.66714289235088    -0.14723997517578    -1.80329831952847    -1.44564048597524     0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000    -1.44564048597524
+    6     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6
+
+    1     0.00000000000000
+    2     0.00000000000000
+    3     0.00000000000000
+    4     0.00000000000000
+    5     0.00000000000000
+    6    -1.44564048597524
+
+
+
+  ## Alpha MO coefficients (Symmetry 0) ##
+  Irrep: 1 Size: 6 x 6
+
+                 1                   2                   3                   4                   5
+
+    1     0.00613170728625     0.54535864244680     0.13547514183585     0.00000000000000     0.00000000000000
+    2     0.99116355900782    -0.17207504424074     0.20910044396805     0.00000000000000     0.00000000000000
+    3     0.03224365652255     0.44889890124332    -0.80076603439392     0.00000000000000     0.00000000000000
+    4     0.00689705680243    -0.34847552060149    -0.61271697988836     0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000     1.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     1.00000000000000
+
+                 6
+
+    1     1.22151353496228
+    2     0.08375822333008
+    3    -0.73115386551599
+    4     1.00100383381457
+    5    -0.00000000000000
+    6    -0.00000000000000
+
+
+
+
+    Psi4 stopped on: Sunday, 17 August 2025 08:45PM
+    Psi4 wall time for execution: 0:00:00.37
+
+*** Psi4 exiting successfully. Buy a developer a beer!

@@ -80,18 +80,26 @@ int main(int argc, char** argv)
   cxxopts::Options options("memoryFF", "Field-free memory model for 1RDM propagation");
 
   options.add_options()
+  ("h,help", "Print usage")
   ("dt", "Time step size", cxxopts::value<double>())
   ("delay", "Integer value of delay", cxxopts::value<int>())
   ("infile", "Input file name", cxxopts::value<std::string>())
-  ("verbose", "Print lots of information to creen", cxxopts::value<bool>()->default_value("false"))
+  ("verbose", "Print lots of information to screen", cxxopts::value<bool>()->default_value("false"))
+  ("saveqprop", "Save qprop matrix to disk", cxxopts::value<bool>()->default_value("false"))
   ("tol", "SVD tolerance", cxxopts::value<double>()->default_value("1e-7"));
   
   auto result = options.parse(argc, argv);
 
+  if (result.count("help"))
+  {
+    std::cout << options.help() << std::endl;
+    return 0;
+  }
+
   double dt, tol;
   int delay;
   std::string infile;
-  bool verbose;
+  bool verbose, saveqprop;
 
   if (result.count("dt")==0)
   {
@@ -122,6 +130,10 @@ int main(int argc, char** argv)
     verbose = false;
   else
     verbose = true;    
+  if (result.count("saveqprop")==0)
+    saveqprop = false;
+  else
+    saveqprop = true;    
 
   // parameters to convert to command line arguments
   // double dt = 0.001;
@@ -195,13 +207,16 @@ int main(int argc, char** argv)
     std::cout << "thisqprop # of cols = " << thisqprop.cols() << "\n";
   }
   // save qprop to disk
-  const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ", ", "\n"); 
-  std::string name = "thisqpropR.csv";
-  std::ofstream fileR(name.c_str());
-  fileR << thisqprop.real().matrix().format(CSVFormat);
-  name = "thisqpropI.csv";
-  std::ofstream fileI(name.c_str());
-  fileI << thisqprop.imag().matrix().format(CSVFormat);
+  if (saveqprop)
+  {
+    const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ", ", "\n"); 
+    std::string name = "thisqpropR.csv";
+    std::ofstream fileR(name.c_str());
+    fileR << thisqprop.real().matrix().format(CSVFormat);
+    name = "thisqpropI.csv";
+    std::ofstream fileI(name.c_str());
+    fileI << thisqprop.imag().matrix().format(CSVFormat);
+  }
 
   // initialize coeff matrix and set initial condition
   double T = 200.0;

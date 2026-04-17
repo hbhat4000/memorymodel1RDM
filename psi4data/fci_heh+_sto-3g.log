@@ -1,0 +1,3 @@
+2025-09-13:17:01:32,740 INFO     [psi4.driver.task_planner:285] PLANNING Atomic:  keywords={'DIAG_METHOD': 'RSP', 'DIPMOM': 1, 'FCI': 1, 'MS0': 0, 'NUM_ROOTS': 4, 'OPDM': 1, 'PRINT': 2, 'PRINT_MOS': 1, 'REFERENCE': 'RHF', 'TDM': 1, 'function_kwargs': {}}
+2025-09-13:17:01:32,742 INFO     [psi4.driver.driver:788] Compute properties(): method=detci, basis=sto-3g, molecule=hehp, nre=1.3709254162435234
+2025-09-13:17:01:33,42 INFO     [psi4.driver.driver:791] Return properties(): -2.85102403004866
