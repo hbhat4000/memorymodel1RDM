@@ -5,6 +5,8 @@
 
 #include <cxxopts.hpp>
 #include "cnpy.h"
+#include <filesystem>
+#include <string>
 #include <iostream>
 #include <fstream>
 #include <complex>
@@ -62,7 +64,7 @@ Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd &mat, double tolerance)
 }
 
 // 1RDM propagator with memory length n (time steps) and time step h
-Eigen::MatrixXcd qprop(int n, double h, const Eigen::VectorXd& hamiltonian, const std::vector<int>& redCols, const Eigen::MatrixXd& BmatT, double tol=1e-9)
+Eigen::MatrixXcd qprop(int n, double h, const Eigen::VectorXd& hamiltonian, const std::vector<int>& redCols, const Eigen::MatrixXd& BmatT, double tol=1e-6)
 {
   int drc2 = BmatT.rows();
 
@@ -84,9 +86,10 @@ int main(int argc, char** argv)
   ("dt", "Time step size", cxxopts::value<double>())
   ("delay", "Integer value of delay", cxxopts::value<int>())
   ("infile", "Input file name", cxxopts::value<std::string>())
+  ("savemae", "Path at which to save MAE to disk", cxxopts::value<std::string>())
   ("verbose", "Print lots of information to screen", cxxopts::value<bool>()->default_value("false"))
   ("saveqprop", "Save qprop matrix to disk", cxxopts::value<bool>()->default_value("false"))
-  ("tol", "SVD tolerance", cxxopts::value<double>()->default_value("1e-7"));
+  ("tol", "SVD tolerance", cxxopts::value<double>()->default_value("1e-6"));
   
   auto result = options.parse(argc, argv);
 
@@ -98,8 +101,8 @@ int main(int argc, char** argv)
 
   double dt, tol;
   int delay;
-  std::string infile;
-  bool verbose, saveqprop;
+  std::string infile, outpath;
+  bool verbose, savemae, saveqprop;
 
   if (result.count("dt")==0)
   {
@@ -123,21 +126,26 @@ int main(int argc, char** argv)
   else
     infile = result["infile"].as<std::string>();
   if (result.count("tol")==0)
-    tol = 1e-7;
+    tol = 1e-6;
   else
     tol = result["tol"].as<double>();
   if (result.count("verbose")==0)
     verbose = false;
   else
     verbose = true;    
+  if (result.count("savemae")==0)
+  {
+    savemae = false;
+  }
+  else
+  {
+    savemae = true;
+    outpath = result["savemae"].as<std::string>();
+  }
   if (result.count("saveqprop")==0)
     saveqprop = false;
   else
-    saveqprop = true;    
-
-  // parameters to convert to command line arguments
-  // double dt = 0.001;
-  // int delay = 2000;
+    saveqprop = true;
 
   // Load the entire .npz file into a map-like structure
   cnpy::npz_t my_npz = cnpy::npz_load(infile);
@@ -266,8 +274,22 @@ int main(int argc, char** argv)
   double mae = (true1rdms - pred1rdms).array().abs().mean();
   if (verbose)
     std::cout << "Mean Absolute Error: " << mae << "\n";
+
+  std::ostringstream oss;
+  oss << std::setprecision(17) << mae;
+  std::string maestr = oss.str();
+  if (savemae)
+  {
+    std::filesystem::path p(infile);
+    std::string stem = p.stem().string();
+    std::string filename = stem + "_" + std::to_string(dt) + "_" + std::to_string(delay) + ".txt";
+    std::filesystem::path dir(outpath);
+    std::filesystem::path outfile = dir / filename;
+    std::ofstream out(outfile);
+    out << maestr << "\n";
+  }
   else
-    std::cout << mae << "\n";
+    std::cout << maestr << "\n";
 
   return 0;
 }

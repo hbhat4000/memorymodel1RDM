@@ -37,7 +37,7 @@ for thisdelay in delayrange:
 
 p = Path(infile)
 stem = p.stem
-outfile = 'maes_' + stem + '.npz'
+outfile = 'maes_dt_' + str(dt) + '_' + stem + '.npz'
 
 # Save output
 np.savez(outfile, maes=maes, delayrange=delayrange, dt=dt)
