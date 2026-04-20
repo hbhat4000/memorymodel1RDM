@@ -1,0 +1,1563 @@
+
+    -----------------------------------------------------------------------
+          Psi4: An Open-Source Ab Initio Electronic Structure Package
+                               Psi4 1.10 release
+
+                         Git: Rev {} zzzzzzz 
+
+
+    D. G. A. Smith, L. A. Burns, A. C. Simmonett, R. M. Parrish,
+    M. C. Schieber, R. Galvelis, P. Kraus, H. Kruse, R. Di Remigio,
+    A. Alenaizan, A. M. James, S. Lehtola, J. P. Misiewicz, M. Scheurer,
+    R. A. Shaw, J. B. Schriber, Y. Xie, Z. L. Glick, D. A. Sirianni,
+    J. S. O'Brien, J. M. Waldrop, A. Kumar, E. G. Hohenstein,
+    B. P. Pritchard, B. R. Brooks, H. F. Schaefer III, A. Yu. Sokolov,
+    K. Patkowski, A. E. DePrince III, U. Bozkaya, R. A. King,
+    F. A. Evangelista, J. M. Turney, T. D. Crawford, C. D. Sherrill,
+    J. Chem. Phys. 152(18) 184108 (2020). https://doi.org/10.1063/5.0006002
+
+                            Additional Code Authors
+    E. T. Seidl, C. L. Janssen, E. F. Valeev, M. L. Leininger,
+    J. F. Gonthier, R. M. Richard, H. R. McAlexander, M. Saitow, X. Wang,
+    P. Verma, M. H. Lechner, A. Jiang, S. Behnle, A. G. Heide,
+    M. F. Herbst, D. L. Poole, T. Győri, E. C. Mitchell, J. P. Pederson,
+    and A. M. Wallace
+
+             Previous Authors, Complete List of Code Contributors,
+                       and Citations for Specific Modules
+    https://github.com/psi4/psi4/blob/master/codemeta.json
+    https://github.com/psi4/psi4/graphs/contributors
+    https://psicode.org/psi4manual/master/introduction.html#citing-psifour
+
+    -----------------------------------------------------------------------
+
+
+    Psi4 started on: Wednesday, 03 December 2025 02:28PM
+
+    Process ID: 870543
+    Host:       rclogin02.cluster
+    PSIDATADIR: /home/aelkamshishy/.conda/envs/p4env/share/psi4
+    Memory:     500.0 MiB
+    Threads:    1
+    Addons:     a̶d̶c̶c̶, a̶m̶b̶i̶t̶, b̶s̶e̶, c̶c̶t̶3̶, c̶f̶o̶u̶r̶, c̶h̶e̶m̶p̶s̶2̶, c̶p̶p̶e̶, d̶d̶x̶,
+                d̶f̶t̶d̶3̶, d̶f̶t̶d̶4̶, dkh, ecpint, einsums, f̶o̶r̶t̶e̶, g̶a̶u̶x̶c̶, g̶c̶p̶,
+                g̶d̶m̶a̶, g̶e̶o̶m̶e̶t̶r̶i̶c̶, g̶p̶u̶_̶d̶f̶c̶c̶, i̶n̶t̶e̶g̶r̶a̶t̶o̶r̶x̶x̶,
+                i̶p̶i̶, l̶i̶b̶e̶f̶p̶, m̶d̶i̶, m̶p̶2̶d̶, m̶r̶c̶c̶, ooo,
+                o̶p̶e̶n̶f̶e̶r̶m̶i̶o̶n̶p̶s̶i̶4̶, pcmsolver, p̶s̶i̶4̶f̶o̶c̶k̶c̶i̶, p̶s̶i̶x̶a̶s̶,
+                r̶e̶s̶p̶, s̶i̶m̶i̶n̶t̶, s̶n̶s̶m̶p̶2̶, v̶2̶r̶d̶m̶_̶c̶a̶s̶s̶c̶f̶
+
+  ==> Input File <==
+
+--------------------------------------------------------------------------
+memory 1 gb
+
+molecule hehp {
+1 1
+H  0.       0.      -0.386
+He 0.       0.       0.386
+symmetry c1
+no_com
+no_reorient
+}
+
+set {
+    reference rhf
+    basis 6-31g**
+    ms0 false
+    ex_allow [1, 0]
+    num_roots 19
+    diag_method rsp
+    print 2
+    dipmom true
+    opdm true
+    tdm true
+}
+
+thisenergy, ciwfn = prop('cisd', properties=['DIPOLE', 'TRANSITION_DIPOLE'], return_wfn=True)
+
+mints = MintsHelper(ciwfn.basisset())
+
+AOdip = mints.ao_dipole()
+AOdip[0].print_out()
+AOdip[1].print_out()
+AOdip[2].print_out()
+
+# MO coefficients
+C = ciwfn.Ca().to_array()
+
+# overlap matrix
+S = ciwfn.S().to_array()
+
+print("Overlap test:")
+n = S.shape[0]
+print(np.mean(np.abs(C.T @ S @ C - np.eye(n))))
+
+# z-direction AO dipole moment matrix
+AOdipmat = AOdip[2].to_array()
+MOdipmat = C.T @ AOdipmat @ C
+
+# set CI size
+cisize = 19
+
+# grab the Hamiltonian
+test = psi4.core.variables()
+ham = []
+for j in range(cisize):
+    ham.append( test['CI ROOT '+str(j)+' TOTAL ENERGY'] )
+ham = np.array(ham)
+
+print("Diagonalized Hamiltonian:")
+print(ham)
+
+# initialize CI dipole moment matrix in z direction
+CIdimatzMO = np.zeros((cisize,cisize))
+CIdimatzAO = np.zeros((cisize,cisize))
+# initialize B tensor
+Bten = np.zeros((cisize, cisize, n, n))
+for i in range(cisize):
+    for j in range(cisize):
+        ciop_dm = ciwfn.get_opdm(i,j,'SUM',True)
+        # store this in Bten
+        Bten[i,j,:,:] = ciop_dm.to_array()
+        # density matrix: change basis from MO to AO
+        dmAO = C @ ciop_dm.to_array() @ C.T
+        # compute this particular density matrix element
+        CIdimatzMO[i, j] = np.trace( ciop_dm.to_array() @ MOdipmat )
+        CIdimatzAO[i, j] = np.trace( dmAO @ AOdipmat )
+
+print("Difference between CI basis dipole moment matrices computed via AO vs MO:")
+print(np.mean(np.abs(CIdimatzMO - CIdimatzAO)))
+
+# reshape OPDMs into B tensor
+
+np.savez('./cis_heh+_6-31g.npz',C=C,S=S,AOdipmat=AOdipmat,CIdimatz=CIdimatzMO,Bten=Bten,ham=ham)
+
+# for debugging purposes:
+# Bmat = Bten.reshape((cisize**2, n**2))
+# Bmat[np.abs(Bmat) < 1e-14] = 0.0
+# print(Bmat)
+
+
+
+--------------------------------------------------------------------------
+
+  Memory set to 953.674 MiB by Python driver.
+   => Libint2 <=
+
+    Primary   basis highest AM E, G, H:  6, 6, 3
+    Auxiliary basis highest AM E, G, H:  7, 7, 4
+    Onebody   basis highest AM E, G, H:  -, -, -
+    Solid Harmonics ordering:            Gaussian
+
+*** tstart() called on rclogin02.cluster
+*** at Wed Dec  3 14:28:36 2025
+
+   => Loading Basis Set <=
+
+    Name: 6-31G**
+    Role: ORBITAL
+    Keyword: BASIS
+    atoms 1 entry H          line    44 file /home/aelkamshishy/.conda/envs/p4env/share/psi4/basis/6-31gss.gbs 
+    atoms 2 entry HE         line    54 file /home/aelkamshishy/.conda/envs/p4env/share/psi4/basis/6-31gss.gbs 
+
+
+         ---------------------------------------------------------
+                                   SCF
+               by Justin Turney, Rob Parrish, Andy Simmonett
+                          and Daniel G. A. Smith
+                              RHF Reference
+                        1 Threads,    953 MiB Core
+         ---------------------------------------------------------
+
+  ==> Geometry <==
+
+    Molecular point group: c1
+    Full point group: C_inf_v
+
+    Geometry (in Angstrom), charge = 1, multiplicity = 1:
+
+       Center              X                  Y                   Z               Mass       
+    ------------   -----------------  -----------------  -----------------  -----------------
+         H            0.000000000000     0.000000000000    -0.386000000000     1.007825032230
+         HE           0.000000000000     0.000000000000     0.386000000000     4.002603254130
+
+  Running in c1 symmetry.
+
+  Rotational constants: A = ************  B =     22.58120  C =     22.58120 [cm^-1]
+  Rotational constants: A = ************  B = 676967.37530  C = 676967.37530 [MHz]
+  Nuclear repulsion =    1.370925416243523
+
+  Charge       = 1
+  Multiplicity = 1
+  Electrons    = 2
+  Nalpha       = 1
+  Nbeta        = 1
+
+  ==> Algorithm <==
+
+  SCF Algorithm Type is PK.
+  DIIS enabled.
+  MOM disabled.
+  Fractional occupation disabled.
+  Guess Type is SAD.
+  Energy threshold   = 1.00e-10
+  Density threshold  = 1.00e-10
+  Integral threshold = 1.00e-12
+
+  ==> Primary Basis <==
+
+  -AO BASIS SET INFORMATION:
+    Name                   = 6-31G**
+    Blend                  = 6-31G**
+    Total number of shells = 6
+    Number of primitives   = 10
+    Number of AO           = 10
+    Number of SO           = 10
+    Maximum AM             = 1
+    Spherical Harmonics    = FALSE
+
+  -Contraction Scheme:
+    Atom   Type   All Primitives // Shells:
+   ------ ------ --------------------------
+       1     H     4s 1p // 2s 1p 
+       2    HE     4s 1p // 2s 1p 
+
+  ==> Integral Setup <==
+
+  Using in-core PK algorithm.
+   Calculation information:
+      Number of atoms:                   2
+      Number of AO shells:               6
+      Number of primitives:             10
+      Number of atomic orbitals:        10
+      Number of basis functions:        10
+
+      Integral cutoff                 1.00e-12
+      Number of threads:                 1
+
+  Performing in-core PK
+  Using 3080 doubles for integral storage.
+  We computed 231 shell quartets total.
+  Whereas there are 231 unique shell quartets.
+
+  ==> DiskJK: Disk-Based J/K Matrices <==
+
+    J tasked:                  Yes
+    K tasked:                  Yes
+    wK tasked:                  No
+    Memory [MiB]:              715
+    Schwarz Cutoff:          1E-12
+
+    OpenMP threads:              1
+
+  Minimum eigenvalue in the overlap matrix is 1.0863060819E-01.
+  Reciprocal condition number of the overlap matrix is 3.8985222718E-02.
+    Using symmetric orthogonalization.
+
+  ==> Pre-Iterations <==
+
+  SCF Guess: Superposition of Atomic Densities via on-the-fly atomic UHF (no occupation information).
+
+   -------------------------
+    Irrep   Nso     Nmo    
+   -------------------------
+     A         10      10 
+   -------------------------
+    Total      10      10
+   -------------------------
+
+  ==> Iterations <==
+
+                        Total Energy        Delta E     RMS |[F,P]|
+
+   @RHF iter SAD:    -3.67142567893151   -3.67143e+00   0.00000e+00 
+   @RHF iter   1:    -2.88711868089769    7.84307e-01   2.59738e-02 DIIS/ADIIS
+   @RHF iter   2:    -2.92403218251074   -3.69135e-02   3.39029e-03 DIIS/ADIIS
+   @RHF iter   3:    -2.92471275235529   -6.80570e-04   2.42232e-04 DIIS/ADIIS
+   @RHF iter   4:    -2.92471611103612   -3.35868e-06   9.72016e-06 DIIS
+   @RHF iter   5:    -2.92471611634743   -5.31130e-09   5.78442e-07 DIIS
+   @RHF iter   6:    -2.92471611637340   -2.59734e-11   6.07936e-08 DIIS
+   @RHF iter   7:    -2.92471611637360   -1.98508e-13   2.72295e-10 DIIS
+   @RHF iter   8:    -2.92471611637359    3.55271e-15   5.89200e-12 DIIS
+  Energy and wave function converged.
+
+
+  ==> Post-Iterations <==
+
+    Orbital Energies [Eh]
+    ---------------------
+
+    Doubly Occupied:                                                      
+
+       1A     -1.634369  
+
+    Virtual:                                                              
+
+       2A     -0.254625     3A      0.412726     4A      0.985402  
+       5A      1.287762     6A      1.287762     7A      1.991302  
+       8A      2.232065     9A      2.232065    10A      3.562490  
+
+    Final Occupation by Irrep:
+              A 
+    DOCC [     1 ]
+    NA   [     1 ]
+    NB   [     1 ]
+
+  @RHF Final Energy:    -2.92471611637359
+
+   => Energetics <=
+
+    Nuclear Repulsion Energy =              1.3709254162435234
+    One-Electron Energy =                  -5.3225451148450977
+    Two-Electron Energy =                   1.0269035822279797
+    Total Energy =                         -2.9247161163735944
+
+Computation Completed
+
+
+Properties will be evaluated at   0.000000,   0.000000,   0.000000 [a0]
+
+Properties computed using the SCF density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -1.0059091            0.7294343           -0.2764748
+ Magnitude           :                                                    0.2764748
+
+ ------------------------------------------------------------------------------------
+
+*** tstop() called on rclogin02.cluster at Wed Dec  3 14:28:36 2025
+Module time:
+	user time   =       0.28 seconds =       0.00 minutes
+	system time =       0.05 seconds =       0.00 minutes
+	total time  =          0 seconds =       0.00 minutes
+Total time:
+	user time   =       0.28 seconds =       0.00 minutes
+	system time =       0.05 seconds =       0.00 minutes
+	total time  =          0 seconds =       0.00 minutes
+ MINTS: Wrapper to libmints.
+   by Justin Turney
+
+   Calculation information:
+      Number of threads:                 1
+      Number of atoms:                   2
+      Number of AO shells:               6
+      Number of SO shells:               6
+      Number of primitives:             10
+      Number of atomic orbitals:        10
+      Number of basis functions:        10
+
+      Number of irreps:                  1
+      Integral cutoff                 1.00e-12
+      Number of functions per irrep: [  10 ]
+
+ OEINTS: Overlap, kinetic, potential, dipole, and quadrupole integrals
+         stored in file 35.
+
+      Computing two-electron integrals...done
+      Computed 512 non-zero two-electron integrals.
+        Stored in file 33.
+
+
+         ---------------------------------------------------------
+                          Configuration Interaction
+                            (a 'D E T C I' module)
+
+                 C. David Sherrill, Daniel G. A. Smith, and
+                              Matt L. Leininger
+         ---------------------------------------------------------
+
+DAVIDSON update not available for OLSEN or MITRUSH iterators
+
+   ==> Parameters <==
+
+    EX LEVEL       =        2      H0 BLOCKSIZE  =     1000
+    VAL EX LEVEL   =        0      H0 GUESS SIZE =     1000
+    H0COUPLINGSIZE =        0      H0 COUPLING   =       NO
+    MAXITER        =       24      NUM PRINT     =       20
+    NUM ROOTS      =       19      ICORE         =        1
+    PRINT LVL      =        2      FCI           =       NO
+    R CONV         = 1.00e-04      MIXED         =      YES
+    E CONV         = 1.00e-08      MIXED4        =      YES
+    R4S            =       NO      REPL OTF      =       NO
+    DIAG METHOD    =      RSP      FOLLOW ROOT   =        0
+    PRECONDITIONER = DAVIDSON      UPDATE        = OLSEN
+    S              =   0.0000      Ms0           =       NO
+    GUESS VECTOR   =  H0BLOCK      OPENTYPE      =     NONE
+    COLLAPSE SIZE  =        1      HD AVG        = EVANGELISTI
+    MAX NUM VECS   =        0      REF SYM       =     AUTO
+    IOPEN        =       NO
+
+    EX ALLOW       =  1  0 
+    STATE AVERAGE  =  0(1.00) 
+
+   ==> CI Orbital and Space information <==
+
+    RAS1 LVL      =        0      A RAS3 MAX    =        1
+    RAS1 MIN      =        0      B RAS3 MAX    =        1
+    A RAS1 LVL    =        0      RAS4 LVL      =       10
+    A RAS1 MIN    =        0      A RAS4 MAX    =        0
+    A RAS1 MAX    =        1      B RAS4 MAX    =        0
+    B RAS1 LVL    =        0      RAS4 MAX      =        0
+    B RAS1 MIN    =        0      A RAS34 MAX   =        1
+    B RAS1 MAX    =        1      B RAS34 MAX   =        1
+    RAS3 LVL      =        1      RAS34 MAX     =        2
+    RAS3 MAX      =        2
+   ------------------------------------
+               Space    Total     A
+   ------------------------------------
+                 Nso       10    10
+                 Nmo       10    10
+               Ndocc        1     1
+               Nsocc        0     0
+   ------------------------------------
+              CI Spaces
+   ------------------------------------
+        Dropped DOCC        0     0
+                RAS1        1     1
+                RAS2        0     0
+                RAS3        9     9
+                RAS4        0     0
+      Active (total)       10    10
+        Dropped UOCC        0     0
+   ------------------------------------
+
+   ==> Setting up CI strings <==
+
+    There are 10 alpha and 10 beta strings
+    The CI space requires 19 (1.90E+01) determinants and 3 blocks
+    Total H0block size (including coupling): 19
+
+   ==> Transforming CI integrals <==
+
+	Presorting SO-basis two-electron integrals.
+	Sorting File: SO Ints (nn|nn) nbuckets = 1
+	Constructing frozen core operators
+	Starting first half-transformation.
+	h = 0; memfree         = 124999800
+	h = 0; rows_per_bucket = 55
+	h = 0; rows_left       = 0
+	h = 0; nbuckets        = 1
+	Sorting half-transformed integrals.
+	First half integral transformation complete.
+	Starting second half-transformation.
+	h = 0; memfree         = 124999800
+	h = 0; rows_per_bucket = 55
+	h = 0; rows_left       = 0
+	h = 0; nbuckets        = 1
+	Two-electron integral transformation complete.
+
+   ==> Starting CI iterations <==
+
+    Exact Diagonalization Algorithm
+
+   ==> Energetics <==
+
+    SCF energy =           -2.924716116373594
+    Total CI energy =      -2.924716116373600
+
+   ==> CISD root 0 information <==
+
+    CISD Root 0 energy =    -2.924716116373600
+
+   The 19 most important determinants:
+
+    *   1   -1.000000  (    0,    0)  1AX 
+
+
+   ==> CISD root 1 information <==
+
+    CISD Root 1 energy =    -2.135976191205454
+
+   The 19 most important determinants:
+
+    *   1    0.682726  (    1,    0)  1AB 2AA 
+    *   2   -0.682726  (    0,    1)  1AA 2AB 
+    *   3   -0.149310  (    0,    2)  1AA 3AB 
+    *   4    0.149310  (    2,    0)  1AB 3AA 
+    *   5   -0.098065  (    0,    3)  1AA 4AB 
+    *   6    0.098065  (    3,    0)  1AB 4AA 
+    *   7   -0.042633  (    6,    0)  1AB 7AA 
+    *   8    0.042633  (    0,    6)  1AA 7AB 
+    *   9    0.012549  (    9,    0)  1AB 10AA 
+    *  10   -0.012549  (    0,    9)  1AA 10AB 
+
+
+   ==> CISD root 2 information <==
+
+    CISD Root 2 energy =    -1.900113238631572
+
+   The 19 most important determinants:
+
+    *   1    0.704158  (    1,    0)  1AB 2AA 
+    *   2    0.704158  (    0,    1)  1AA 2AB 
+    *   3    0.064070  (    0,    2)  1AA 3AB 
+    *   4    0.064070  (    2,    0)  1AB 3AA 
+    *   5   -0.006539  (    0,    3)  1AA 4AB 
+    *   6   -0.006539  (    3,    0)  1AB 4AA 
+    *   7    0.003418  (    6,    0)  1AB 7AA 
+    *   8    0.003418  (    0,    6)  1AA 7AB 
+    *   9   -0.001335  (    0,    9)  1AA 10AB 
+    *  10   -0.001335  (    9,    0)  1AB 10AA 
+    *  11   -0.000000  (    0,    0)  1AX 
+
+
+   ==> CISD root 3 information <==
+
+    CISD Root 3 energy =    -1.450173267284424
+
+   The 19 most important determinants:
+
+    *   1    0.681456  (    2,    0)  1AB 3AA 
+    *   2   -0.681456  (    0,    2)  1AA 3AB 
+    *   3    0.134127  (    0,    1)  1AA 2AB 
+    *   4   -0.134127  (    1,    0)  1AB 2AA 
+    *   5   -0.123808  (    3,    0)  1AB 4AA 
+    *   6    0.123808  (    0,    3)  1AA 4AB 
+    *   7   -0.047649  (    6,    0)  1AB 7AA 
+    *   8    0.047649  (    0,    6)  1AA 7AB 
+    *   9   -0.005329  (    9,    0)  1AB 10AA 
+    *  10    0.005329  (    0,    9)  1AA 10AB 
+
+
+   ==> CISD root 4 information <==
+
+    CISD Root 4 energy =    -1.303010060580938
+
+   The 19 most important determinants:
+
+    *   1   -0.703449  (    0,    2)  1AA 3AB 
+    *   2   -0.703449  (    2,    0)  1AB 3AA 
+    *   3    0.064252  (    0,    1)  1AA 2AB 
+    *   4    0.064252  (    1,    0)  1AB 2AA 
+    *   5    0.030943  (    0,    3)  1AA 4AB 
+    *   6    0.030943  (    3,    0)  1AB 4AA 
+    *   7   -0.006170  (    9,    0)  1AB 10AA 
+    *   8   -0.006170  (    0,    9)  1AA 10AB 
+    *   9    0.005930  (    0,    6)  1AA 7AB 
+    *  10    0.005930  (    6,    0)  1AB 7AA 
+
+
+   ==> CISD root 5 information <==
+
+    CISD Root 5 energy =    -1.026499659768013
+
+   The 19 most important determinants:
+
+    *   1    0.686867  (    0,    3)  1AA 4AB 
+    *   2   -0.686867  (    3,    0)  1AB 4AA 
+    *   3    0.123446  (    1,    0)  1AB 2AA 
+    *   4   -0.123446  (    0,    1)  1AA 2AB 
+    *   5    0.097830  (    0,    2)  1AA 3AB 
+    *   6   -0.097830  (    2,    0)  1AB 3AA 
+    *   7    0.042562  (    6,    0)  1AB 7AA 
+    *   8   -0.042562  (    0,    6)  1AA 7AB 
+    *   9   -0.039904  (    9,    0)  1AB 10AA 
+    *  10    0.039904  (    0,    9)  1AA 10AB 
+
+
+   ==> CISD root 6 information <==
+
+    CISD Root 6 energy =    -0.830331403002400
+
+   The 19 most important determinants:
+
+    *   1   -0.695324  (    5,    0)  1AB 6AA 
+    *   2    0.695324  (    0,    5)  1AA 6AB 
+    *   3   -0.094352  (    0,    4)  1AA 5AB 
+    *   4    0.094352  (    4,    0)  1AB 5AA 
+    *   5   -0.077445  (    8,    0)  1AB 9AA 
+    *   6    0.077445  (    0,    8)  1AA 9AB 
+    *   7    0.040302  (    7,    0)  1AB 8AA 
+    *   8   -0.040302  (    0,    7)  1AA 8AB 
+
+
+   ==> CISD root 7 information <==
+
+    CISD Root 7 energy =    -0.830331403002396
+
+   The 19 most important determinants:
+
+    *   1    0.695324  (    4,    0)  1AB 5AA 
+    *   2   -0.695324  (    0,    4)  1AA 5AB 
+    *   3    0.094352  (    5,    0)  1AB 6AA 
+    *   4   -0.094352  (    0,    5)  1AA 6AB 
+    *   5   -0.077445  (    7,    0)  1AB 8AA 
+    *   6    0.077445  (    0,    7)  1AA 8AB 
+    *   7    0.040302  (    0,    8)  1AA 9AB 
+    *   8   -0.040302  (    8,    0)  1AB 9AA 
+
+
+   ==> CISD root 8 information <==
+
+    CISD Root 8 energy =    -0.727189895996802
+
+   The 19 most important determinants:
+
+    *   1    0.706358  (    3,    0)  1AB 4AA 
+    *   2    0.706358  (    0,    3)  1AA 4AB 
+    *   3    0.031339  (    2,    0)  1AB 3AA 
+    *   4    0.031339  (    0,    2)  1AA 3AB 
+    *   5    0.007878  (    9,    0)  1AB 10AA 
+    *   6    0.007878  (    0,    9)  1AA 10AB 
+    *   7    0.003725  (    0,    1)  1AA 2AB 
+    *   8    0.003725  (    1,    0)  1AB 2AA 
+    *   9   -0.000363  (    0,    6)  1AA 7AB 
+    *  10   -0.000363  (    6,    0)  1AB 7AA 
+
+
+   ==> CISD root 9 information <==
+
+    CISD Root 9 energy =    -0.556156715543830
+
+   The 19 most important determinants:
+
+    *   1   -0.706707  (    0,    4)  1AA 5AB 
+    *   2   -0.706707  (    4,    0)  1AB 5AA 
+    *   3    0.016140  (    7,    0)  1AB 8AA 
+    *   4    0.016140  (    0,    7)  1AA 8AB 
+    *   5    0.012827  (    5,    0)  1AB 6AA 
+    *   6    0.012827  (    0,    5)  1AA 6AB 
+    *   7    0.011839  (    0,    8)  1AA 9AB 
+    *   8    0.011839  (    8,    0)  1AB 9AA 
+
+
+   ==> CISD root 10 information <==
+
+    CISD Root 10 energy =    -0.556156715543828
+
+   The 19 most important determinants:
+
+    *   1   -0.706707  (    0,    5)  1AA 6AB 
+    *   2   -0.706707  (    5,    0)  1AB 6AA 
+    *   3   -0.016140  (    8,    0)  1AB 9AA 
+    *   4   -0.016140  (    0,    8)  1AA 9AB 
+    *   5   -0.012827  (    0,    4)  1AA 5AB 
+    *   6   -0.012827  (    4,    0)  1AB 5AA 
+    *   7    0.011839  (    0,    7)  1AA 8AB 
+    *   8    0.011839  (    7,    0)  1AB 8AA 
+
+
+   ==> CISD root 11 information <==
+
+    CISD Root 11 energy =    -0.101219575770832
+
+   The 19 most important determinants:
+
+    *   1    0.701911  (    0,    6)  1AA 7AB 
+    *   2   -0.701911  (    6,    0)  1AB 7AA 
+    *   3    0.060910  (    0,    2)  1AA 3AB 
+    *   4   -0.060910  (    2,    0)  1AB 3AA 
+    *   5    0.040664  (    0,    9)  1AA 10AB 
+    *   6   -0.040664  (    9,    0)  1AB 10AA 
+    *   7    0.036854  (    0,    3)  1AA 4AB 
+    *   8   -0.036854  (    3,    0)  1AB 4AA 
+    *   9    0.024469  (    0,    1)  1AA 2AB 
+    *  10   -0.024469  (    1,    0)  1AB 2AA 
+
+
+   ==> CISD root 12 information <==
+
+    CISD Root 12 energy =     0.116022374074295
+
+   The 19 most important determinants:
+
+    *   1   -0.706742  (    6,    0)  1AB 7AA 
+    *   2   -0.706742  (    0,    6)  1AA 7AB 
+    *   3   -0.021704  (    9,    0)  1AB 10AA 
+    *   4   -0.021704  (    0,    9)  1AA 10AB 
+    *   5   -0.005409  (    2,    0)  1AB 3AA 
+    *   6   -0.005409  (    0,    2)  1AA 3AB 
+    *   7    0.003882  (    0,    1)  1AA 2AB 
+    *   8    0.003882  (    1,    0)  1AB 2AA 
+    *   9    0.000098  (    0,    3)  1AA 4AB 
+    *  10    0.000098  (    3,    0)  1AB 4AA 
+
+
+   ==> CISD root 13 information <==
+
+    CISD Root 13 energy =     0.219874301740117
+
+   The 19 most important determinants:
+
+    *   1    0.685473  (    7,    0)  1AB 8AA 
+    *   2   -0.685473  (    0,    7)  1AA 8AB 
+    *   3    0.150017  (    8,    0)  1AB 9AA 
+    *   4   -0.150017  (    0,    8)  1AA 9AB 
+    *   5    0.080437  (    4,    0)  1AB 5AA 
+    *   6   -0.080437  (    0,    4)  1AA 5AB 
+    *   7   -0.033937  (    0,    5)  1AA 6AB 
+    *   8    0.033937  (    5,    0)  1AB 6AA 
+
+
+   ==> CISD root 14 information <==
+
+    CISD Root 14 energy =     0.219874301740119
+
+   The 19 most important determinants:
+
+    *   1   -0.685473  (    0,    8)  1AA 9AB 
+    *   2    0.685473  (    8,    0)  1AB 9AA 
+    *   3   -0.150017  (    7,    0)  1AB 8AA 
+    *   4    0.150017  (    0,    7)  1AA 8AB 
+    *   5   -0.080437  (    5,    0)  1AB 6AA 
+    *   6    0.080437  (    0,    5)  1AA 6AB 
+    *   7   -0.033937  (    0,    4)  1AA 5AB 
+    *   8    0.033937  (    4,    0)  1AB 5AA 
+
+
+   ==> CISD root 15 information <==
+
+    CISD Root 15 energy =     0.338905076709894
+
+   The 19 most important determinants:
+
+    *   1    0.699567  (    0,    7)  1AA 8AB 
+    *   2    0.699567  (    7,    0)  1AB 8AA 
+    *   3    0.101019  (    8,    0)  1AB 9AA 
+    *   4    0.101019  (    0,    8)  1AA 9AB 
+    *   5    0.017835  (    0,    4)  1AA 5AB 
+    *   6    0.017835  (    4,    0)  1AB 5AA 
+    *   7    0.009088  (    0,    5)  1AA 6AB 
+    *   8    0.009088  (    5,    0)  1AB 6AA 
+
+
+   ==> CISD root 16 information <==
+
+    CISD Root 16 energy =     0.338905076709897
+
+   The 19 most important determinants:
+
+    *   1    0.699567  (    8,    0)  1AB 9AA 
+    *   2    0.699567  (    0,    8)  1AA 9AB 
+    *   3   -0.101019  (    0,    7)  1AA 8AB 
+    *   4   -0.101019  (    7,    0)  1AB 8AA 
+    *   5   -0.017835  (    5,    0)  1AB 6AA 
+    *   6   -0.017835  (    0,    5)  1AA 6AB 
+    *   7    0.009088  (    4,    0)  1AB 5AA 
+    *   8    0.009088  (    0,    4)  1AA 5AB 
+
+
+   ==> CISD root 17 information <==
+
+    CISD Root 17 energy =     1.502014504623131
+
+   The 19 most important determinants:
+
+    *   1   -0.704676  (    0,    9)  1AA 10AB 
+    *   2    0.704676  (    9,    0)  1AB 10AA 
+    *   3    0.043705  (    0,    3)  1AA 4AB 
+    *   4   -0.043705  (    3,    0)  1AB 4AA 
+    *   5   -0.037696  (    6,    0)  1AB 7AA 
+    *   6    0.037696  (    0,    6)  1AA 7AB 
+    *   7   -0.007594  (    1,    0)  1AB 2AA 
+    *   8    0.007594  (    0,    1)  1AA 2AB 
+    *   9    0.006560  (    0,    2)  1AA 3AB 
+    *  10   -0.006560  (    2,    0)  1AB 3AA 
+
+
+   ==> CISD root 18 information <==
+
+    CISD Root 18 energy =     1.642298369579067
+
+   The 19 most important determinants:
+
+    *   1   -0.706701  (    9,    0)  1AB 10AA 
+    *   2   -0.706701  (    0,    9)  1AA 10AB 
+    *   3    0.021643  (    6,    0)  1AB 7AA 
+    *   4    0.021643  (    0,    6)  1AA 7AB 
+    *   5    0.007614  (    3,    0)  1AB 4AA 
+    *   6    0.007614  (    0,    3)  1AA 4AB 
+    *   7    0.006536  (    2,    0)  1AB 3AA 
+    *   8    0.006536  (    0,    2)  1AA 3AB 
+    *   9   -0.001969  (    0,    1)  1AA 2AB 
+    *  10   -0.001969  (    1,    0)  1AB 2AA 
+
+		 "A good bug is a dead bug" 
+
+			 - Starship Troopers
+
+		 "I didn't write FORTRAN.  That's the problem."
+
+			 - Edward Valeev
+
+
+Properties will be evaluated at   0.000000,   0.000000,   0.000000 [a0]
+
+Properties computed using the CISD density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -1.0059091            0.7294343           -0.2764748
+ Magnitude           :                                                    0.2764748
+
+ ------------------------------------------------------------------------------------
+
+
+Properties will be evaluated at   0.000000,   0.000000,   0.000000 [a0]
+
+Properties computed using the CI density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -1.0059091            0.7294343           -0.2764748
+ Magnitude           :                                                    0.2764748
+
+ ------------------------------------------------------------------------------------
+
+   ===> CI properties for all CI roots <=== 
+
+
+Properties computed using the CI ROOT 0 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -1.0059091            0.7294343           -0.2764748
+ Magnitude           :                                                    0.2764748
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 1 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :          0.1839214            0.7294343            0.9133557
+ Magnitude           :                                                    0.9133557
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 2 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.4284416            0.7294343            1.1578759
+ Magnitude           :                                                    1.1578759
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 3 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.2247611            0.7294343            0.5046732
+ Magnitude           :                                                    0.5046732
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 4 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.0431908            0.7294343            0.6862435
+ Magnitude           :                                                    0.6862435
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 5 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.6494025            0.7294343            0.0800318
+ Magnitude           :                                                    0.0800318
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 6 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.7769430            0.7294343           -0.0475087
+ Magnitude           :                                                    0.0475087
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 7 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.7769430            0.7294343           -0.0475087
+ Magnitude           :                                                    0.0475087
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 8 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.9267064            0.7294343           -0.1972721
+ Magnitude           :                                                    0.1972721
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 9 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.6359482            0.7294343            0.0934861
+ Magnitude           :                                                    0.0934861
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 10 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.6359482            0.7294343            0.0934861
+ Magnitude           :                                                    0.0934861
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 11 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.4209243            0.7294343            0.3085100
+ Magnitude           :                                                    0.3085100
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 12 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.5110170            0.7294343            0.2184173
+ Magnitude           :                                                    0.2184173
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 13 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.2289661            0.7294343            0.5004682
+ Magnitude           :                                                    0.5004682
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 14 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.2289661            0.7294343            0.5004682
+ Magnitude           :                                                    0.5004682
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 15 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.3699609            0.7294343            0.3594734
+ Magnitude           :                                                    0.3594734
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 16 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.3699609            0.7294343            0.3594734
+ Magnitude           :                                                    0.3594734
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 17 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.4575122            0.7294343            0.2719220
+ Magnitude           :                                                    0.2719220
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 18 density matrix
+
+
+ Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.5162061            0.7294343            0.2132282
+ Magnitude           :                                                    0.2132282
+
+ ------------------------------------------------------------------------------------
+
+   ===> CI properties for all CI transition density matrices <=== 
+
+
+Properties computed using the CI ROOT 0 -> ROOT 1 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.8391925            0.0000000           -0.8391925
+ Magnitude           :                                                    0.8391925
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 2 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.7942412            0.0000000           -0.7942412
+ Magnitude           :                                                    0.7942412
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 3 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.3750529            0.0000000           -0.3750529
+ Magnitude           :                                                    0.3750529
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 4 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.4427649            0.0000000            0.4427649
+ Magnitude           :                                                    0.4427649
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 5 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.1018642            0.0000000           -0.1018642
+ Magnitude           :                                                    0.1018642
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 6 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.1815186            0.0000000           -0.1815186
+ Dipole Y            :          0.6890040            0.0000000            0.6890040
+ Dipole Z            :          0.0000000            0.0000000            0.0000000
+ Magnitude           :                                                    0.7125135
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 7 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.6890040            0.0000000            0.6890040
+ Dipole Y            :          0.1815186            0.0000000            0.1815186
+ Dipole Z            :          0.0000000            0.0000000            0.0000000
+ Magnitude           :                                                    0.7125135
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 8 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :          0.0266148            0.0000000            0.0266148
+ Magnitude           :                                                    0.0266148
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 9 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.6430998            0.0000000           -0.6430998
+ Dipole Y            :         -0.2799829            0.0000000           -0.2799829
+ Dipole Z            :         -0.0000000            0.0000000           -0.0000000
+ Magnitude           :                                                    0.7014042
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 10 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.2799829            0.0000000           -0.2799829
+ Dipole Y            :          0.6430998            0.0000000            0.6430998
+ Dipole Z            :          0.0000000            0.0000000            0.0000000
+ Magnitude           :                                                    0.7014042
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 11 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.1761516            0.0000000           -0.1761516
+ Magnitude           :                                                    0.1761516
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 12 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :          0.0000000            0.0000000            0.0000000
+ Dipole Z            :         -0.2429720            0.0000000           -0.2429720
+ Magnitude           :                                                    0.2429720
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 13 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0825024            0.0000000           -0.0825024
+ Dipole Y            :          0.0005591            0.0000000            0.0005591
+ Dipole Z            :         -0.0000000            0.0000000           -0.0000000
+ Magnitude           :                                                    0.0825043
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 14 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0005591            0.0000000           -0.0005591
+ Dipole Y            :         -0.0825024            0.0000000           -0.0825024
+ Dipole Z            :         -0.0000000            0.0000000           -0.0000000
+ Magnitude           :                                                    0.0825043
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 15 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.1495830            0.0000000           -0.1495830
+ Dipole Y            :          0.0118148            0.0000000            0.0118148
+ Dipole Z            :          0.0000000            0.0000000            0.0000000
+ Magnitude           :                                                    0.1500489
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 16 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0118148            0.0000000           -0.0118148
+ Dipole Y            :         -0.1495830            0.0000000           -0.1495830
+ Dipole Z            :         -0.0000000            0.0000000           -0.0000000
+ Magnitude           :                                                    0.1500489
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 17 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :          0.0000000            0.0000000            0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :          0.0807561            0.0000000            0.0807561
+ Magnitude           :                                                    0.0807561
+
+ ------------------------------------------------------------------------------------
+
+Properties computed using the CI ROOT 0 -> ROOT 18 density matrix
+
+
+Transition Multipole Moments:
+
+ ------------------------------------------------------------------------------------
+     Multipole            Electronic (a.u.)      Nuclear  (a.u.)        Total (a.u.)
+ ------------------------------------------------------------------------------------
+
+ L = 1.  Multiply by 2.5417464519 to convert [e a0] to [Debye]
+ Dipole X            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Y            :         -0.0000000            0.0000000           -0.0000000
+ Dipole Z            :         -0.0789452            0.0000000           -0.0789452
+ Magnitude           :                                                    0.0789452
+
+ ------------------------------------------------------------------------------------
+  ## AO Mux (Symmetry 0) ##
+  Irrep: 1 Size: 10 x 10
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000    -0.51848333168869     0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.00000000000000    -0.45387881636667     0.00000000000000     0.00000000000000
+    3    -0.51848333168869    -0.45387881636667     0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.10589152970763     0.00000000000000     0.00000000000000
+    7     0.00000000000000     0.00000000000000    -0.33764446280209     0.00000000000000     0.00000000000000
+    8    -0.20630088442457    -0.33645809966360     0.00000000000000     0.00000000000000    -0.22626472316325
+    9     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+   10     0.00000000000000     0.00000000000000     0.22626472316325     0.00000000000000     0.00000000000000
+
+                 6                   7                   8                   9                  10
+
+    1     0.00000000000000     0.00000000000000    -0.20630088442457     0.00000000000000     0.00000000000000
+    2     0.00000000000000     0.00000000000000    -0.33645809966360     0.00000000000000     0.00000000000000
+    3    -0.10589152970763    -0.33764446280209     0.00000000000000     0.00000000000000     0.22626472316325
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000    -0.22626472316325     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000    -0.37947116364547     0.00000000000000     0.00000000000000
+    7     0.00000000000000     0.00000000000000    -0.55612027327789     0.00000000000000     0.00000000000000
+    8    -0.37947116364547    -0.55612027327789     0.00000000000000     0.00000000000000     0.00000000000000
+    9     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+   10     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+
+
+  ## AO Muy (Symmetry 0) ##
+  Irrep: 1 Size: 10 x 10
+
+                 1                   2                   3                   4                   5
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000    -0.51848333168869     0.00000000000000
+    2     0.00000000000000     0.00000000000000     0.00000000000000    -0.45387881636667     0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4    -0.51848333168869    -0.45387881636667     0.00000000000000     0.00000000000000     0.00000000000000
+    5     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000    -0.10589152970763     0.00000000000000
+    7     0.00000000000000     0.00000000000000     0.00000000000000    -0.33764446280209     0.00000000000000
+    8     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    9    -0.20630088442457    -0.33645809966360     0.00000000000000     0.00000000000000    -0.22626472316325
+   10     0.00000000000000     0.00000000000000     0.00000000000000     0.22626472316325     0.00000000000000
+
+                 6                   7                   8                   9                  10
+
+    1     0.00000000000000     0.00000000000000     0.00000000000000    -0.20630088442457     0.00000000000000
+    2     0.00000000000000     0.00000000000000     0.00000000000000    -0.33645809966360     0.00000000000000
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4    -0.10589152970763    -0.33764446280209     0.00000000000000     0.00000000000000     0.22626472316325
+    5     0.00000000000000     0.00000000000000     0.00000000000000    -0.22626472316325     0.00000000000000
+    6     0.00000000000000     0.00000000000000     0.00000000000000    -0.37947116364547     0.00000000000000
+    7     0.00000000000000     0.00000000000000     0.00000000000000    -0.55612027327789     0.00000000000000
+    8     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    9    -0.37947116364547    -0.55612027327789     0.00000000000000     0.00000000000000     0.00000000000000
+   10     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+
+
+
+  ## AO Muz (Symmetry 0) ##
+  Irrep: 1 Size: 10 x 10
+
+                 1                   2                   3                   4                   5
+
+    1     0.72943428442672     0.48018078995363     0.00000000000000     0.00000000000000    -0.51848333168869
+    2     0.48018078995363     0.72943428442672     0.00000000000000     0.00000000000000    -0.45387881636667
+    3     0.00000000000000     0.00000000000000     0.72943428442672     0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.72943428442672     0.00000000000000
+    5    -0.51848333168869    -0.45387881636667     0.00000000000000     0.00000000000000     0.72943428442672
+    6    -0.06649052713651    -0.19241535006026     0.00000000000000     0.00000000000000    -0.15312640958149
+    7     0.16291841013117    -0.16208271113832     0.00000000000000     0.00000000000000    -0.21480055101119
+    8     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    9     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+   10    -0.16390614713841    -0.25050446416046     0.00000000000000     0.00000000000000     0.00000000000000
+
+                 6                   7                   8                   9                  10
+
+    1    -0.06649052713651     0.16291841013117     0.00000000000000     0.00000000000000    -0.16390614713841
+    2    -0.19241535006026    -0.16208271113832     0.00000000000000     0.00000000000000    -0.25050446416046
+    3     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    4     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000     0.00000000000000
+    5    -0.15312640958149    -0.21480055101119     0.00000000000000     0.00000000000000     0.00000000000000
+    6    -0.72943428442672    -0.46256910197892     0.00000000000000     0.00000000000000    -0.37947116364547
+    7    -0.46256910197892    -0.72943428442672     0.00000000000000     0.00000000000000    -0.55612027327789
+    8     0.00000000000000     0.00000000000000    -0.72943428442672     0.00000000000000     0.00000000000000
+    9     0.00000000000000     0.00000000000000     0.00000000000000    -0.72943428442672     0.00000000000000
+   10    -0.37947116364547    -0.55612027327789     0.00000000000000     0.00000000000000    -0.72943428442672
+
+
+
+
+    Psi4 stopped on: Wednesday, 03 December 2025 02:28PM
+    Psi4 wall time for execution: 0:00:00.64
+
+*** Psi4 exiting successfully. Buy a developer a beer!

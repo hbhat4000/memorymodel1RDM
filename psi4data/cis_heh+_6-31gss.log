@@ -1,0 +1,3 @@
+2025-12-03:14:28:36,291 INFO     [psi4.driver.task_planner:259] PLANNING Atomic:  keywords={'DIAG_METHOD': 'RSP', 'DIPMOM': 1, 'EX_ALLOW': [1, 0], 'MS0': 0, 'NUM_ROOTS': 19, 'OPDM': 1, 'PRINT': 2, 'REFERENCE': 'RHF', 'TDM': 1, 'function_kwargs': {}}
+2025-12-03:14:28:36,294 INFO     [psi4.driver.driver:790] Compute properties(): method=cisd, basis=6-31g**, molecule=hehp, nre=1.3709254162435234
+2025-12-03:14:28:36,875 INFO     [psi4.driver.driver:793] Return properties(): -2.9247161163736
