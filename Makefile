@@ -2,16 +2,16 @@
 CXX      = icpx
 
 # Compiler flags
-CXXFLAGS = -O3 -xHost -m64 \
-           -I/home/hbhat/include \
-           -I/home/hbhat/include/eigen3
+CXXFLAGS = -O3 -xHost -m64 -std=c++20 -qopenmp \
+           -I /home/hbhat/include/eigen3/ \
+           -I /home/hbhat/include/
 
 # Linker flags
-LDFLAGS  = -L/home/hbhat/lib -lcnpy -qmkl
+LDFLAGS  = -L/home/hbhat/lib -lcnpy -qmkl -qopenmp
 
 # Target
-TARGET   = memoryFF
-SRC      = memoryFF.cpp
+TARGET   = memoryFO
+SRC      = memoryFO.cpp
 
 # Default rule
 all: $(TARGET)
