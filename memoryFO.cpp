@@ -4,6 +4,7 @@
 #define EIGEN_USE_MKL_ALL
 
 #include <mkl.h>
+#include <omp.h>
 
 // This tells the compiler to intentionally crash if MKL is NOT using 32-bit integers (LP64)
 static_assert(sizeof(MKL_INT) == 4, "FATAL ERROR: MKL is using the ILP64 interface instead of LP64!");
@@ -14,7 +15,8 @@ static_assert(sizeof(MKL_INT) == 4, "FATAL ERROR: MKL is using the ILP64 interfa
 
 #include <cxxopts.hpp>
 #include "cnpy.h"
-#include <utility>       // for std::move
+
+#include <utility>
 #include <filesystem>
 #include <string>
 #include <unordered_set>
@@ -24,34 +26,33 @@ static_assert(sizeof(MKL_INT) == 4, "FATAL ERROR: MKL is using the ILP64 interfa
 #include <fstream>
 #include <complex>
 #include <cmath>
-#include <omp.h>
 #include <algorithm>
+#include <chrono>
 
 using namespace std::complex_literals;
-
 
 // Function to compute the Moore–Penrose pseudoinverse
 Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd &mat, double tolerance)
 {
-    mkl_set_num_threads(56);
-  
-    // Compute SVD: mat = U * Σ * Vᵀ
-    Eigen::JacobiSVD<Eigen::MatrixXcd> svd( mat, Eigen::ComputeThinU | Eigen::ComputeThinV );
+  mkl_set_num_threads(56);
 
-    const Eigen::VectorXd &singularValues = svd.singularValues();
-    Eigen::VectorXd singularValuesInv(singularValues.size());
+  // Compute SVD: mat = U * Σ * Vᵀ
+  Eigen::JacobiSVD<Eigen::MatrixXcd> svd( mat, Eigen::ComputeThinU | Eigen::ComputeThinV );
 
-    // Invert singular values with tolerance to avoid division by zero
-    for (int i = 0; i < singularValues.size(); ++i)
-    {
-        if (singularValues(i) > tolerance)
-            singularValuesInv(i) = 1.0 / singularValues(i);
-        else
-            singularValuesInv(i) = 0.0;
-    }
+  const Eigen::VectorXd &singularValues = svd.singularValues();
+  Eigen::VectorXd singularValuesInv(singularValues.size());
 
-    // Pseudoinverse formula: V * Σ⁺ * U^\dagger
-    return svd.matrixV() * singularValuesInv.asDiagonal() * svd.matrixU().adjoint();
+  // Invert singular values with tolerance to avoid division by zero
+  for (int i = 0; i < singularValues.size(); ++i)
+  {
+      if (singularValues(i) > tolerance)
+          singularValuesInv(i) = 1.0 / singularValues(i);
+      else
+          singularValuesInv(i) = 0.0;
+  }
+
+  // Pseudoinverse formula: V * Σ⁺ * U^\dagger
+  return svd.matrixV() * singularValuesInv.asDiagonal() * svd.matrixU().adjoint();
 }
 
 class memoryModel
@@ -94,8 +95,10 @@ class memoryModel
                 double svdtol, std::string infile, std::string ioutfile);
 
     int getdrc(void) { return drc; }
+    int getdrc2(void) { return drc2; }
     int getdrcCI(void) { return drcCI; }
     int getN(void) { return N; }
+    int getnsteps(void) { return nsteps; }
     Eigen::MatrixXcd getTrue1rdms(void) { return true1rdms; }
     Eigen::MatrixXcd getPred1rdms(int j) { return pred1rdms[j]; }
 
@@ -423,7 +426,7 @@ memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc,
      tol(svdtol), outfile(std::move(ioutfile)), nsteps(static_cast<int>(std::ceil(T/h)))
 {
   offstep = static_cast<int>(std::ceil(ncyc / (dt * freq)));
-
+  std::cout << "Field will be on for " << offstep << " time steps\n";
   // Load the entire .npz file into a map-like structure
   cnpy::npz_t my_npz = cnpy::npz_load(infile);
 
@@ -473,8 +476,6 @@ int memoryModel::tdseProp(Eigen::VectorXcd& ic)
   // copy initial condition into coeffs
   for (int j=0; j<drcCI; ++j)
     coeffs(j, 0) = ic(j);
-
-  // std::cout << "coeffs.col(0) = " << coeffs.col(0) << "\n";
     
   // initialize propagators to be the identity
   props.resize(nsteps, Eigen::MatrixXcd::Identity(drcCI, drcCI));
@@ -746,13 +747,38 @@ int main(int argc, char** argv)
   mm.tdseProp(ic);
   mm.exact1RDMS();
   mm.filterIndices();
+  auto start = std::chrono::steady_clock::now();
   mm.qpropALL();
+  auto end = std::chrono::steady_clock::now();
+  std::chrono::duration<double> elapsed_seconds = end - start;
+  std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
   // mm.bigmatBuild(100,5);
   // mm.bigmatPrint();
-  // Eigen::MatrixXcd preds = mm.qprop(200);
-  // Eigen::MatrixXcd truth = mm.getTrue1rdms();
-  // double mae = (truth - preds).array().abs().mean();
-  // std::cout << "Mean Absolute Error: " << mae << "\n";
+  start = std::chrono::steady_clock::now();
+  std::vector<Eigen::MatrixXcd> preds;
+  preds.resize(delayparams[2], Eigen::MatrixXcd::Zero(mm.getdrc2(), mm.getnsteps()+1));
+  for (int i=0; i<delayparams[2]; ++i)
+  {
+    // std::cout << "\n\n";
+    int jell = delayparams[0] + i * delayparams[1];
+    std::cout << "delay = " << jell << "\n";
+    preds[i] = mm.qprop(jell);
+  }
+  end = std::chrono::steady_clock::now();
+  elapsed_seconds = end - start;
+  std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
+
+  for (int i=0; i<delayparams[2]; ++i)
+  {
+    int jell = delayparams[0] + i * delayparams[1];
+    std::cout << "\n\ndelay = " << jell << "\n";
+    double maePreds = (mm.getPred1rdms(i) - preds[i]).array().abs().mean();
+    std::cout << "MAE( batch predictions(i) - single prediction at i ) = " << maePreds << "\n";
+    double maeTruth1 = (mm.getTrue1rdms() - preds[i]).array().abs().mean();
+    std::cout << "MAE( truth - single prediction at i ) = " << maeTruth1 << "\n";
+    double maeTruth2 = (mm.getTrue1rdms() - mm.getPred1rdms(i)).array().abs().mean();
+    std::cout << "MAE( truth - batch predictions(i) ) = " << maeTruth2 << "\n";    
+  }
   return 0;
 }
 
