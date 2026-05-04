@@ -10,6 +10,7 @@ static_assert(sizeof(MKL_INT) == 4, "FATAL ERROR: MKL is using the ILP64 interfa
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <unsupported/Eigen/KroneckerProduct>
 
 #include <cxxopts.hpp>
 #include "cnpy.h"
@@ -71,7 +72,7 @@ class memoryModel
   std::vector<Eigen::MatrixXcd> props;     // all time-dependent propagators "exp(-i H_n dt)"
   std::vector<Eigen::MatrixXcd> fprops;    // all time-dependent propagators "exp(-i H_n dt)"
   Eigen::MatrixXcd true1rdms;              // ground truth 1-RDMs
-  std::vector<Eigen::MatrixXcd> pred1rdms; // predicted 1-RDMs
+  std::vector<Eigen::MatrixXcd> pred1rdms; // predicted 1-RDMs (at each of the delay values in delayrange)s
   std::unordered_set<int> goodStates;      // non-trivial indices of coefficient vector "coeffs"
   std::vector<int> goodCols;               // columns in "drcCI**2" space to retain
   MatrixXcdRowMajor bigmat;                // stacked matrix that gets pseudoinverted at each step
@@ -84,6 +85,7 @@ class memoryModel
     int getdrc(void) { return drc; }
     int getdrcCI(void) { return drcCI; }
     int getN(void) { return N; }
+    Eigen::MatrixXcd getTrue1rdms(void) { return true1rdms; }
 
     // solve TDSE forward in time starting from a particular initial condition,
     // saving propagators as we go
@@ -102,7 +104,7 @@ class memoryModel
     int bigmatPrint(void);
     
     // propagate 1RDM with memory model for particular delay value
-    // qprop();
+    Eigen::MatrixXcd qprop(int jell);
 };
 
 memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc, double svdtol, 
@@ -142,6 +144,11 @@ memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc,
   Eigen::Map<Eigen::VectorXd> Bten(Btendata, length);
   Eigen::Map<const Eigen::MatrixXd> Bmat_map(Bten.data(), drc2, drcCI2);
   Bmat = Bmat_map;
+
+  // initialize various objects
+  coeffs.setZero(drcCI, nsteps+1);
+  true1rdms.setZero(drc2, nsteps+1);
+  pred1rdms.resize(delayrange.size(), Eigen::MatrixXcd::Zero(drc2, nsteps+1));
 }
 
 int memoryModel::tdseProp(Eigen::VectorXcd& ic)
@@ -153,7 +160,6 @@ int memoryModel::tdseProp(Eigen::VectorXcd& ic)
 
   // std::cout << "Received initial condition " << ic << "\n";
   
-  coeffs.setZero(drcCI, nsteps+1);
   // copy initial condition into coeffs
   for (int j=0; j<drcCI; ++j)
     coeffs(j, 0) = ic(j);
@@ -200,7 +206,6 @@ int memoryModel::exact1RDMS(void)
     return 1;
   }
   // compute ground truth 1RDMs
-  true1rdms.setZero(drc2, nsteps+1);
   mkl_set_num_threads(1);
 
   #pragma omp parallel for
@@ -318,10 +323,50 @@ int memoryModel::bigmatPrint(void)
   return 0;
 }
 
+// simple function that propagates 1RDM forward in time 
+// - take pseudoinverse of freshly constructed bigmat at each step
+// - don't worry about parallelization or incremental updates or anything
+Eigen::MatrixXcd memoryModel::qprop(int jell)
+{
+  // declare and initialize predicted 1RDMS
+  Eigen::MatrixXcd preds(drc2, nsteps+1);
+  preds.setZero();
+
+  // copy in some ground truth 1RDMs
+  for (int k=0; k<=jell; ++k)
+    preds.col(k) = true1rdms.col(k);
+  
+  if (!filtered)
+  {
+    std::cout << "Filtered indices and propagated must be computed first!\n";
+    return preds;
+  }
+  
+  // then loop over history and build bigmat and use pseudoinverse to propagate...
+  for (int k=jell; k<nsteps; ++k)
+  {
+    Eigen::MatrixXcd temp = preds.block(0, k-jell, drc2, jell+1).rowwise().reverse();
+    bigmatBuild(k, jell);
+    Eigen::MatrixXcd bigmatpinv = pseudoInverse(bigmat, tol);
+    Eigen::VectorXcd PreconVec = bigmatpinv * temp.reshaped();
+    Eigen::MatrixXcd Precon = PreconVec.reshaped(N, N);
+    // std::cout << "Precon = " << std::setprecision(15) << Precon << "\n";
+    // Eigen::VectorXcd PtrueVec = (coeffs.col(k) * coeffs.col(k).adjoint()).transpose().reshaped();
+    // Eigen::MatrixXcd Ptrue = PtrueVec(goodCols).reshaped(N, N);
+    // std::cout << "Ptrue = " << std::setprecision(15) << Ptrue << "\n";    
+    // std::cout << "|| Precon - Ptrue || = " << std::setprecision(15) << (Precon - Ptrue).norm() << "\n";
+    preds.col(k+1) = BmatR * (fprops[k].adjoint() * Precon * fprops[k].transpose()).reshaped();
+    // std::cout << "preds.col(k+1) = " << std::setprecision(15) << preds.col(k+1) << "\n";
+  }
+  return preds;
+}
+
 // 1. For REQUIRED parameters
 template <typename T>
-void getRequired(const cxxopts::ParseResult& res, const std::string& key, T& var, const std::string& errMsg) {
-    if (res.count(key) == 0) {
+void getRequired(const cxxopts::ParseResult& res, const std::string& key, T& var, const std::string& errMsg)
+{
+    if (res.count(key) == 0)
+    {
         std::cerr << errMsg << "\n";
         exit(1);
     }
@@ -330,12 +375,12 @@ void getRequired(const cxxopts::ParseResult& res, const std::string& key, T& var
 
 // 2. For OPTIONAL parameters with a default
 template <typename T>
-void getOptional(const cxxopts::ParseResult& res, const std::string& key, T& var, const T& defaultValue) {
-    if (res.count(key) == 0) {
+void getOptional(const cxxopts::ParseResult& res, const std::string& key, T& var, const T& defaultValue)
+{
+    if (res.count(key) == 0)
         var = defaultValue;
-    } else {
+    else
         var = res[key].as<T>();
-    }
 }
 
 int main(int argc, char** argv)
@@ -382,8 +427,12 @@ int main(int argc, char** argv)
   mm.tdseProp(ic);
   mm.exact1RDMS();
   mm.filterIndices();
-  mm.bigmatBuild(100,5);
+  // mm.bigmatBuild(100,5);
   // mm.bigmatPrint();
+  Eigen::MatrixXcd preds = mm.qprop(100);
+  Eigen::MatrixXcd truth = mm.getTrue1rdms();
+  double mae = (truth - preds).array().abs().mean();
+  std::cout << "Mean Absolute Error: " << mae << "\n";
   return 0;
 }
 
