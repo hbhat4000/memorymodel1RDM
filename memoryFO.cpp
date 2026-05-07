@@ -188,25 +188,23 @@ Eigen::MatrixXcd memoryModel::nextBlock(int J, int lastell)
     return nb;
   }  
   
-  mkl_set_num_threads(1);
-  
   for (int j=ell+1; j<=lastell; ++j)
   {
     Amat = Amat * fprops[J - j];
     MatrixXcdRowMajor Result(drc2, N2);
     
-    // Parallelize the batch processing over M^2 matrices
-    #pragma omp parallel for
-    for (int k=0; k<drc2; ++k)
-    {
-      // Map the contiguous memory of the k-th row to an N x N matrix
-      Eigen::Map<MatrixXcdRowMajor> BmatRk(BmatR.row(k).data(), N, N);
-      Eigen::Map<MatrixXcdRowMajor> Rk(Result.row(k).data(), N, N);
-      
-      // Evaluate in two steps to guarantee two clean BLAS GEMM calls per batch
-      Eigen::MatrixXcd temp = Amat.conjugate() * BmatRk;
-      Rk.noalias() = temp * Amat.transpose();
+    mkl_set_num_threads(1);
+    #pragma omp parallel for schedule(dynamic)
+    for (int k = 0; k < drc2; ++k) {
+        Eigen::Map<MatrixXcdRowMajor> BmatRk(BmatR.row(k).data(), N, N);
+        Eigen::Map<MatrixXcdRowMajor> Rk(Result.row(k).data(), N, N);
+    
+        // Because MKL is set to 1 thread, these GEMMs happen entirely within 
+        // the private L2 cache of whichever core grabbed this 'k' iteration.
+        Eigen::MatrixXcd temp = Amat.conjugate() * BmatRk;
+        Rk.noalias() = temp * Amat.transpose();
     }
+    mkl_set_num_threads(56);
     nb.block((j-(ell+1))*drc2, 0, drc2, N2) = Result;
   }
   ell = lastell;
@@ -629,16 +627,14 @@ int memoryModel::bigmatBuild(int J, int jell)
 
   // this will hold our propagator chain
   Amat.setIdentity( N, N );
-  
-  mkl_set_num_threads(1);
-  
+    
   for (int j=1; j<=jell; ++j)
   {
     Amat = Amat * fprops[J - j];
     MatrixXcdRowMajor Result(drc2, N2);
     
-    // Parallelize the batch processing over M^2 matrices
-    #pragma omp parallel for
+    mkl_set_num_threads(1);
+    #pragma omp parallel for schedule(dynamic)
     for (int k=0; k<drc2; ++k)
     {
       // Map the contiguous memory of the k-th row to an N x N matrix
@@ -649,6 +645,7 @@ int memoryModel::bigmatBuild(int J, int jell)
       Eigen::MatrixXcd temp = Amat.conjugate() * BmatRk;
       Rk.noalias() = temp * Amat.transpose();
     }
+    mkl_set_num_threads(56);
     bigmat.block(j*drc2, 0, drc2, N2) = Result;
   }
   // update class data to reflect that Amat includes a chain up till this point

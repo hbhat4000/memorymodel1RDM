@@ -2,7 +2,7 @@
 CXX      = icpx
 
 # Compiler flags
-CXXFLAGS = -O3 -xHost -m64 -std=c++20 -qopenmp \
+CXXFLAGS = -O3 -g -fno-omit-frame-pointer -xHost -m64 -std=c++20 -qopenmp \
            -I /home/hbhat/include/eigen3/ \
            -I /home/hbhat/include/
 
