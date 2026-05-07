@@ -37,7 +37,7 @@ Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd &mat, double tolerance)
   mkl_set_num_threads(56);
 
   // Compute SVD: mat = U * Σ * Vᵀ
-  Eigen::JacobiSVD<Eigen::MatrixXcd> svd( mat, Eigen::ComputeThinU | Eigen::ComputeThinV );
+  Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd( mat );
 
   const Eigen::VectorXd &singularValues = svd.singularValues();
   Eigen::VectorXd singularValuesInv(singularValues.size());
@@ -53,6 +53,30 @@ Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd &mat, double tolerance)
 
   // Pseudoinverse formula: V * Σ⁺ * U^\dagger
   return svd.matrixV() * singularValuesInv.asDiagonal() * svd.matrixU().adjoint();
+}
+
+// Function to compute the Moore–Penrose pseudoinverse
+Eigen::VectorXcd pseudoInverseVec(const Eigen::VectorXcd &vec, const Eigen::MatrixXcd &mat, double tolerance)
+{
+  mkl_set_num_threads(56);
+
+  // Compute SVD: mat = U * Σ * Vᵀ
+  Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd( mat );
+
+  const Eigen::VectorXd &singularValues = svd.singularValues();
+  Eigen::VectorXd singularValuesInv(singularValues.size());
+
+  // Invert singular values with tolerance to avoid division by zero
+  for (int i = 0; i < singularValues.size(); ++i)
+  {
+      if (singularValues(i) > tolerance)
+          singularValuesInv(i) = 1.0 / singularValues(i);
+      else
+          singularValuesInv(i) = 0.0;
+  }
+
+  // Pseudoinverse formula: V * Σ⁺ * U^\dagger
+  return svd.matrixV() * (singularValuesInv.asDiagonal() * (svd.matrixU().adjoint() * vec));
 }
 
 class memoryModel
@@ -207,17 +231,14 @@ int memoryModel::updateSVD(const Eigen::MatrixXcd& r)
   // Calculate a dynamic noise threshold based on the incoming block
   double r_norm = r.norm();
   double tol = (r_norm > 1e-14) ? 1e-12 * r_norm : 1e-12;
-  
-  // We use JacobiSVD which is highly optimized for large matrices
-  const int svdOptions = Eigen::ComputeThinU | Eigen::ComputeThinV;
-  
+    
   if (k >= N || rorth.norm() < tol)
   {
     // --- TALL REGIME / NO EXPANSION ---
     Eigen::MatrixXcd kmat(k + m, k);
     kmat.topRows(k) = s1.cast<std::complex<double>>().asDiagonal();
     kmat.bottomRows(m) = r_par;
-    Eigen::JacobiSVD<Eigen::MatrixXcd> svd(kmat, svdOptions);
+    Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(kmat);
     
     int rank_to_keep = std::min(static_cast<int>(svd.singularValues().size()), N);
     this->s2 = svd.singularValues().head(rank_to_keep);
@@ -234,7 +255,7 @@ int memoryModel::updateSVD(const Eigen::MatrixXcd& r)
   else
   {
     // --- EXPANSION REGIME ---
-    Eigen::JacobiSVD<Eigen::MatrixXcd> svd_rorth(rorth, svdOptions);
+    Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd_rorth(rorth);
     
     // Count meaningful new dimensions above the noise floor
     int valid_dims = (svd_rorth.singularValues().array() > tol).count();
@@ -249,7 +270,7 @@ int memoryModel::updateSVD(const Eigen::MatrixXcd& r)
       kmat.topRows(k) = s1.cast<std::complex<double>>().asDiagonal();
       kmat.bottomRows(m) = r_par;
       
-      Eigen::JacobiSVD<Eigen::MatrixXcd> svd(kmat, svdOptions);
+      Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(kmat);
       
       int rank_to_keep = std::min(static_cast<int>(svd.singularValues().size()), N);
       this->s2 = svd.singularValues().head(rank_to_keep);
@@ -286,7 +307,7 @@ int memoryModel::updateSVD(const Eigen::MatrixXcd& r)
       kmat.bottomLeftCorner(m, k) = r_par;
       kmat.bottomRightCorner(m, new_dims) = z;
       
-      Eigen::JacobiSVD<Eigen::MatrixXcd> svd(kmat, svdOptions);
+      Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(kmat);
       
       // Strict truncation to N
       int rank_to_keep = std::min(static_cast<int>(svd.singularValues().size()), N);
@@ -320,7 +341,7 @@ int memoryModel::updateSVD(const Eigen::MatrixXcd& r)
     // Absorb into center core
     Eigen::MatrixXcd core = R_u * this->s2.cast<std::complex<double>>().asDiagonal() * R_v.adjoint();
     
-    Eigen::JacobiSVD<Eigen::MatrixXcd> svd_core(core, svdOptions);
+    Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd_core(core);
     
     this->s2 = svd_core.singularValues();
     this->u2 = u_clean * svd_core.matrixU();
@@ -335,7 +356,7 @@ int memoryModel::mySVD(const Eigen::MatrixXcd &mat)
   mkl_set_num_threads(56);
 
   // Compute SVD: mat = U * Σ * Vᵀ
-  Eigen::JacobiSVD<Eigen::MatrixXcd> svd( mat, Eigen::ComputeThinU | Eigen::ComputeThinV );
+  Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd( mat );
   this->u1 = svd.matrixU();
   this->s1 = svd.singularValues();
   this->v1 = svd.matrixV();
@@ -673,8 +694,10 @@ Eigen::MatrixXcd memoryModel::qprop(int jell)
   {
     Eigen::MatrixXcd qhist = preds.block(0, k-jell, drc2, jell+1).rowwise().reverse();
     bigmatBuild(k, jell);
-    Eigen::MatrixXcd bigmatpinv = pseudoInverse(bigmat, tol);
-    Eigen::VectorXcd PreconVec = bigmatpinv * qhist.reshaped();
+    // Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixXcd> cod(bigmat);
+    // cod.setThreshold(1e-10);
+    // Eigen::VectorXcd PreconVec = cod.solve(qhist.reshaped());
+    Eigen::VectorXcd PreconVec = pseudoInverseVec(qhist.reshaped(), bigmat, tol);
     Eigen::MatrixXcd Precon = PreconVec.reshaped(N, N);
     preds.col(k+1) = BmatR * (fprops[k].adjoint() * Precon * fprops[k].transpose()).reshaped();
   }
