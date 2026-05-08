@@ -34,7 +34,7 @@ using namespace std::complex_literals;
 // Function to compute the Moore–Penrose pseudoinverse
 Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd &mat, double tolerance)
 {
-  mkl_set_num_threads(56);
+  mkl_set_num_threads(8);
 
   // Compute SVD: mat = U * Σ * Vᵀ
   Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd( mat );
@@ -58,8 +58,6 @@ Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd &mat, double tolerance)
 // Function to compute the Moore–Penrose pseudoinverse
 Eigen::VectorXcd pseudoInverseVec(const Eigen::VectorXcd &vec, const Eigen::MatrixXcd &mat, double tolerance)
 {
-  mkl_set_num_threads(56);
-
   // Compute SVD: mat = U * Σ * Vᵀ
   Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd( mat );
 
@@ -204,7 +202,7 @@ Eigen::MatrixXcd memoryModel::nextBlock(int J, int lastell)
         Eigen::MatrixXcd temp = Amat.conjugate() * BmatRk;
         Rk.noalias() = temp * Amat.transpose();
     }
-    mkl_set_num_threads(56);
+    mkl_set_num_threads(8);
     nb.block((j-(ell+1))*drc2, 0, drc2, N2) = Result;
   }
   ell = lastell;
@@ -216,8 +214,6 @@ Eigen::MatrixXcd memoryModel::nextBlock(int J, int lastell)
 // note that this function alters u2, s2, v2
 int memoryModel::updateSVD(const Eigen::MatrixXcd& r)
 {
-  mkl_set_num_threads(56);
-  
   int N = v1.rows();  // The maximum Hilbert space dimension
   int k = s1.size();
   int m = r.rows();
@@ -351,8 +347,6 @@ int memoryModel::updateSVD(const Eigen::MatrixXcd& r)
 // compute the SVD of mat and store it in u1, s1, v1
 int memoryModel::mySVD(const Eigen::MatrixXcd &mat)
 {
-  mkl_set_num_threads(56);
-
   // Compute SVD: mat = U * Σ * Vᵀ
   Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd( mat );
   this->u1 = svd.matrixU();
@@ -645,7 +639,7 @@ int memoryModel::bigmatBuild(int J, int jell)
       Eigen::MatrixXcd temp = Amat.conjugate() * BmatRk;
       Rk.noalias() = temp * Amat.transpose();
     }
-    mkl_set_num_threads(56);
+    mkl_set_num_threads(8);
     bigmat.block(j*drc2, 0, drc2, N2) = Result;
   }
   // update class data to reflect that Amat includes a chain up till this point
@@ -725,6 +719,7 @@ void getOptional(const cxxopts::ParseResult& res, const std::string& key, T& var
 
 int main(int argc, char** argv)
 {
+  mkl_set_num_threads(8);
   cxxopts::Options options("memoryFO", "Field-on memory model for 1RDM propagation");
   options.add_options()
   ("h,help", "Print usage")
@@ -772,8 +767,10 @@ int main(int argc, char** argv)
   auto end = std::chrono::steady_clock::now();
   std::chrono::duration<double> elapsed_seconds = end - start;
   std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
+  
   // mm.bigmatBuild(100,5);
   // mm.bigmatPrint();
+  /*
   start = std::chrono::steady_clock::now();
   std::vector<Eigen::MatrixXcd> preds;
   preds.resize(delayparams[2], Eigen::MatrixXcd::Zero(mm.getdrc2(), mm.getnsteps()+1));
@@ -799,6 +796,7 @@ int main(int argc, char** argv)
     double maeTruth2 = (mm.getTrue1rdms() - mm.getPred1rdms(i)).array().abs().mean();
     std::cout << "MAE( truth - batch predictions(i) ) = " << maeTruth2 << "\n";    
   }
+  */
   return 0;
 }
 
