@@ -11,7 +11,6 @@ static_assert(sizeof(MKL_INT) == 4, "FATAL ERROR: MKL is using the ILP64 interfa
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
-#include <unsupported/Eigen/KroneckerProduct>
 
 #include <cxxopts.hpp>
 #include "cnpy.h"
@@ -53,28 +52,6 @@ Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd &mat, double tolerance)
 
   // Pseudoinverse formula: V * Σ⁺ * U^\dagger
   return svd.matrixV() * singularValuesInv.asDiagonal() * svd.matrixU().adjoint();
-}
-
-// Function to compute the Moore–Penrose pseudoinverse
-Eigen::VectorXcd pseudoInverseVec(const Eigen::VectorXcd &vec, const Eigen::MatrixXcd &mat, double tolerance)
-{
-  // Compute SVD: mat = U * Σ * Vᵀ
-  Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd( mat );
-
-  const Eigen::VectorXd &singularValues = svd.singularValues();
-  Eigen::VectorXd singularValuesInv(singularValues.size());
-
-  // Invert singular values with tolerance to avoid division by zero
-  for (int i = 0; i < singularValues.size(); ++i)
-  {
-      if (singularValues(i) > tolerance)
-          singularValuesInv(i) = 1.0 / singularValues(i);
-      else
-          singularValuesInv(i) = 0.0;
-  }
-
-  // Pseudoinverse formula: V * Σ⁺ * U^\dagger
-  return svd.matrixV() * (singularValuesInv.asDiagonal() * (svd.matrixU().adjoint() * vec));
 }
 
 class memoryModel
@@ -666,7 +643,18 @@ int memoryModel::qpropALL(void)
 int memoryModel::qpropALLV2(void)
 {
   std::vector<Eigen::MatrixXcd> rdmprops;
-  rdmprops.resize(numdelays, Eigen::MatrixXcd::Identity(N2, drc2));
+  rdmprops.resize(numdelays);
+
+  std::vector<int> goodStatesVec(goodStates.begin(), goodStates.end());
+  std::sort(goodStatesVec.begin(), goodStatesVec.end());
+  std::complex<double> coeff = -1.0i * h;
+  Eigen::VectorXcd factor = coeff*H0.array();
+  Eigen::VectorXcd diagvals = factor.array().exp();
+  diagvals = diagvals(goodStatesVec);
+  Eigen::MatrixXcd outer_product = diagvals * diagvals.adjoint();
+  Eigen::VectorXcd kron_diag = outer_product.reshaped<Eigen::RowMajor>();
+  Eigen::MatrixXcd kronprop = kron_diag.asDiagonal();
+  // std::cout << "Constructed kronprop of size " << kronprop.rows() << ", " << kronprop.cols() << "\n";
   
   // remove this as/when we eventually replace qpropALL with qpropALLV2
   pred1rdms.resize(numdelays, Eigen::MatrixXcd::Zero(drc2, nsteps+1));
@@ -689,6 +677,7 @@ int memoryModel::qpropALLV2(void)
   // suppose that J-jell >= offstep
   // then all the propagators we need to go backwards in time are in fact time-independent
   // this means that for J >= jell + offstep we can build the 1-RDM propagator once and for all!
+  int firsttimedep = 0;
   for (int J=delaystart; J<nsteps; ++J)
   {
     std::cout << "Propagating 1RDM at time step " << J << "\n";
@@ -700,22 +689,28 @@ int memoryModel::qpropALLV2(void)
       {
         pred1rdms[i].col(J+1) = true1rdms.col(J+1);
       }
-      else if ((J-jell) >= offstep)
-      {
-        if ((J-jell) == offstep)
-        {
-          std::cout << "Building rdmprop for delay " << jell << "\n";
-          bigmatBuild(J, jell);
-          Eigen::MatrixXcd kronprop = Eigen::kroneckerProduct(fprops[J], fprops[J].conjugate());
-          rdmprops[i] = BmatR * kronprop * pseudoInverse(this->bigmat, this->tol);
-        }
-        Eigen::MatrixXcd qhist = pred1rdms[i].block(0, J-jell, drc2, jell+1).rowwise().reverse();
-        pred1rdms[i].col(J+1) = rdmprops[i] * qhist;
-      }
       else
       {
-        if (i==0)
+        bool needPropagation=true;
+        if ((J-jell) >= offstep)
         {
+          if ((J-jell) == offstep)
+          {
+            // std::cout << "Building rdmprop for delay " << jell << "\n";
+            bigmatBuild(J, jell);
+            Eigen::MatrixXcd mypinv = pseudoInverse(this->bigmat, this->tol);
+            rdmprops[i] = BmatR * kronprop * mypinv;
+            firsttimedep++;
+          }
+          Eigen::MatrixXcd qhist = pred1rdms[i].block(0, J-jell, drc2, jell+1).rowwise().reverse();
+          // std::cout << "Using rdmprop for delay " << jell << "\n";
+          pred1rdms[i].col(J+1) = rdmprops[i] * qhist.reshaped();
+          needPropagation=false;
+        }
+        if (i==firsttimedep)
+        {
+          // if (firsttimedep >= 1)
+          //     std::cout << "Entering i==firsttimedep block...\n";
           // compute the bigmat once
           // note that this resets Amat and our internal ell
           auto t1 = std::chrono::steady_clock::now();
@@ -730,8 +725,10 @@ int memoryModel::qpropALLV2(void)
           std::cout << "mySVD: " << e2.count() << " seconds\n";  
           */
         }
-        else
+        else if ((i > firsttimedep) && (firsttimedep < numdelays))
         {
+          // if (firsttimedep >= 1)
+          //     std::cout << "Entering firsttimedep < numdelays block...\n";
           // grab the next block
           // note that this updates Amat and our internal ell
           auto t1 = std::chrono::steady_clock::now();
@@ -751,10 +748,13 @@ int memoryModel::qpropALLV2(void)
           s1 = s2;
           v1 = v2;
         }
-        Eigen::MatrixXcd qhist = pred1rdms[i].block(0, J-jell, drc2, jell+1).rowwise().reverse();
-        Eigen::VectorXcd PreconVec = pinvvec(qhist.reshaped(), this->tol);
-        Eigen::MatrixXcd Precon = PreconVec.reshaped(N, N);
-        pred1rdms[i].col(J+1) = BmatR * (fprops[J].adjoint() * Precon * fprops[J].transpose()).reshaped();
+        if (needPropagation)
+        {
+          Eigen::MatrixXcd qhist = pred1rdms[i].block(0, J-jell, drc2, jell+1).rowwise().reverse();
+          Eigen::VectorXcd PreconVec = pinvvec(qhist.reshaped(), this->tol);
+          Eigen::MatrixXcd Precon = PreconVec.reshaped(N, N);
+          pred1rdms[i].col(J+1) = BmatR * (fprops[J].adjoint() * Precon * fprops[J].transpose()).reshaped();
+        }
       }
     }
   }
@@ -834,7 +834,7 @@ int main(int argc, char** argv)
   mm.filterIndices();
   
   auto start = std::chrono::steady_clock::now();
-  mm.qpropALL();
+  mm.qpropALLV2();
   auto end = std::chrono::steady_clock::now();
   std::chrono::duration<double> elapsed_seconds = end - start;
   std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
@@ -847,7 +847,7 @@ int main(int argc, char** argv)
   }
   
   start = std::chrono::steady_clock::now();
-  mm.qpropALLV2();
+  mm.qpropALL();
   end = std::chrono::steady_clock::now();
   elapsed_seconds = end - start;
   std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
