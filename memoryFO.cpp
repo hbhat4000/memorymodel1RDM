@@ -34,7 +34,7 @@ using namespace std::complex_literals;
 // Function to compute the Moore–Penrose pseudoinverse
 Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd &mat, double tolerance)
 {
-  mkl_set_num_threads(8);
+  mkl_set_num_threads(56);
 
   // Compute SVD: mat = U * Σ * Vᵀ
   Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd( mat );
@@ -140,12 +140,6 @@ class memoryModel
     // print bigmat to screen
     int bigmatPrint(void);
 
-    // propagate 1RDM with memory model for particular delay value
-    Eigen::MatrixXcd qprop(int jell);
-
-    // reset A matrix to be the identity
-    int resetAmat(void);
-
     // this function advances the chain of propagators from ell to lastell
     // it forms and returns the next block in bigmat 
     // note that this function alters the state of both ell and Amat
@@ -166,7 +160,227 @@ class memoryModel
 
     // propagate 1RDM with memory model for all delay values at once
     int qpropALL(void);
+    int qpropALLV2(void);
 };
+
+
+memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays,
+                         double svdtol, std::string infile, std::string ioutfile)
+   : h(dt), T(T), freq(freq), amp(amp), ncyc(ncyc), delaystart(delaystart), delaystep(delaystep), numdelays(numdelays), 
+     tol(svdtol), outfile(std::move(ioutfile)), nsteps(static_cast<int>(std::ceil(T/h)))
+{
+  offstep = static_cast<int>(std::ceil(ncyc / (dt * freq)));
+  std::cout << "Field will be on for " << offstep << " time steps\n";
+  // Load the entire .npz file into a map-like structure
+  cnpy::npz_t my_npz = cnpy::npz_load(infile);
+
+  // Load ham
+  cnpy::NpyArray arr = my_npz["ham"];
+  double* hamdata = arr.data<double>();
+  size_t length = arr.shape[0];
+  Eigen::Map<Eigen::VectorXd> H0_map(hamdata, length);
+  H0 = H0_map;
+  drcCI = (int) length;
+  drcCI2 = drcCI*drcCI;
+  std::cout << "drcCI = " << drcCI << "\n";
+
+  // Load dipole moment matrix (in z direction)
+  arr = my_npz["CIdimatz"];
+  double* cidimatz = arr.data<double>();
+  Eigen::Map<Eigen::VectorXd> CIdimatz(cidimatz, drcCI2);
+  Eigen::Map<const Eigen::MatrixXd> dimatz_map(CIdimatz.data(), drcCI, drcCI);
+  dimatz = dimatz_map;
+    
+  // Load Bten  
+  arr = my_npz["Bten"];
+  double* Btendata = arr.data<double>();
+  length = arr.shape[0]*arr.shape[1]*arr.shape[2]*arr.shape[3];
+  drc = (int) arr.shape[2];
+  drc2 = drc*drc;
+  std::cout << "drc = " << drc << "\n";
+  Eigen::Map<Eigen::VectorXd> Bten(Btendata, length);
+  Eigen::Map<const Eigen::MatrixXd> Bmat_map(Bten.data(), drc2, drcCI2);
+  Bmat = Bmat_map;
+
+  // initialize various objects
+  coeffs.setZero(drcCI, nsteps+1);
+  true1rdms.setZero(drc2, nsteps+1);
+  pred1rdms.resize(numdelays, Eigen::MatrixXcd::Zero(drc2, nsteps+1));
+}
+
+
+int memoryModel::tdseProp(Eigen::VectorXcd& ic)
+{
+  double field = 0.0;
+  Eigen::MatrixXcd prop;
+  Eigen::VectorXcd D, Dexp;
+  std::complex<double> scalarfac = -1.0i * h;
+
+  // std::cout << "Received initial condition " << ic << "\n";
+  
+  // copy initial condition into coeffs
+  for (int j=0; j<drcCI; ++j)
+    coeffs(j, 0) = ic(j);
+    
+  // initialize propagators to be the identity
+  props.resize(nsteps, Eigen::MatrixXcd::Identity(drcCI, drcCI));
+
+  for (int k=0; k<nsteps; ++k)
+  {
+    Eigen::MatrixXcd H = H0.asDiagonal();
+    if (k < offstep)
+    {
+      field = amp * std::sin(2 * EIGEN_PI * freq * k * h);
+      // std::cout << "Time step j = " << k << "; field strength = " << field << "\n";
+      H += field * dimatz;
+      if (! H.isApprox(H.adjoint(), 1e-12)) std::cout << "H is not Hermitian at step " << k << "\n";
+      Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> solver(H);
+      D = solver.eigenvalues();
+      D = scalarfac * D;
+      Dexp = D.array().exp();
+      prop = solver.eigenvectors() * Dexp.asDiagonal() * solver.eigenvectors().adjoint();
+      props[k] = prop;
+    }
+    else
+    {
+      D = scalarfac * H0;
+      Dexp = D.array().exp();
+      props[k] = Dexp.asDiagonal();
+    }
+    coeffs.col(k+1) = props[k] * coeffs.col(k);
+    // std::cout << "coeffs.col(" << (k+1) << ") = " << coeffs.col(k+1) << "\n";
+  }
+  havecoeffs = true;
+  return 0;
+}
+
+int memoryModel::exact1RDMS(void)
+{
+  if (!havecoeffs)
+  {
+    std::cout << "TDCI coefficients have not been computed yet!\n";
+    return 1;
+  }
+  // compute ground truth 1RDMs
+  mkl_set_num_threads(1);
+  #pragma omp parallel for
+  for (int k=0; k<=nsteps; ++k)
+  {
+    // outer product
+    Eigen::MatrixXcd op = coeffs.col(k) * coeffs.col(k).adjoint();
+    // reduction
+    true1rdms.col(k) = Bmat * op.transpose().reshaped();
+  }
+  mkl_set_num_threads(56);
+  have1rdms = true;
+  return 0;
+}
+
+int memoryModel::filterIndices(void)
+{
+  if (!havecoeffs)
+  {
+    std::cout << "TDCI coefficients have not been computed yet!\n";
+    return 1;
+  }
+  const double thresh = 1e-10;
+  double rownorm;
+  for (int j=0; j<drcCI; ++j)
+  {
+    rownorm = coeffs.row(j).norm();
+    // std::cout << "Row " << j << " has norm = " << rownorm << "\n";
+    if (rownorm >= thresh) goodStates.insert(j);
+  }
+
+  // now figure out which entries in drcCI**2 space we should retain
+  int cnt = 0;
+  for (int row=0; row<drcCI; ++row)
+  {
+    for (int col=0; col<drcCI; ++col)
+    {
+      if (goodStates.find(row) != goodStates.end())
+        if (goodStates.find(col) != goodStates.end())
+          goodCols.push_back(cnt);
+      cnt++;
+    }    
+  }
+
+  N = goodStates.size();
+  N2 = N*N;
+  std::cout << "Retaining " << N2 << " or " << goodCols.size() << " entries\n";
+
+  // reduce the B matrix
+  BmatR = Bmat(Eigen::placeholders::all, goodCols);
+
+  // filter all the propagators
+  fprops.resize(nsteps, Eigen::MatrixXcd::Identity(N, N));
+  std::vector<int> goodStatesVec(goodStates.begin(), goodStates.end());
+  std::sort(goodStatesVec.begin(), goodStatesVec.end());
+
+  mkl_set_num_threads(1);
+  #pragma omp parallel for
+  for (int k=0; k<nsteps; ++k)
+    fprops[k] = props[k](goodStatesVec, goodStatesVec);
+
+  mkl_set_num_threads(56);
+  filtered = true;
+  return 0;
+}
+
+// form bigmat at particular point in time for particular delay value
+// this function performs double duty as the "starting block" for the incremental approach
+int memoryModel::bigmatBuild(int J, int jell)
+{
+  if (!filtered)
+  {
+    std::cout << "Filtered indices and propagators must be computed first!\n";
+    return 1;
+  }  
+  // resize bigmat and store first block
+  bigmat.setZero( (jell+1)*drc2, N2 );
+  bigmat.block(0, 0, drc2, N2) = BmatR;
+
+  // this will hold our propagator chain
+  Amat.setIdentity( N, N );
+    
+  for (int j=1; j<=jell; ++j)
+  {
+    Amat = Amat * fprops[J - j];
+    MatrixXcdRowMajor Result(drc2, N2);
+    
+    mkl_set_num_threads(1);
+    #pragma omp parallel for schedule(dynamic)
+    for (int k=0; k<drc2; ++k)
+    {
+      // Map the contiguous memory of the k-th row to an N x N matrix
+      Eigen::Map<MatrixXcdRowMajor> BmatRk(BmatR.row(k).data(), N, N);
+      Eigen::Map<MatrixXcdRowMajor> Rk(Result.row(k).data(), N, N);
+      
+      // Evaluate in two steps to guarantee two clean BLAS GEMM calls per batch
+      Eigen::MatrixXcd temp = Amat.conjugate() * BmatRk;
+      Rk.noalias() = temp * Amat.transpose();
+    }
+    mkl_set_num_threads(56);
+    bigmat.block(j*drc2, 0, drc2, N2) = Result;
+  }
+  // update class data to reflect that Amat includes a chain up till this point
+  ell = jell;
+  return 0;
+}
+
+int memoryModel::bigmatPrint(void)
+{
+  for (int j=0; j<bigmat.rows(); ++j)
+  {
+    for (int k=0; k<N2; ++k)
+    {
+      std::cout << std::setprecision(15) << bigmat(j,k).real() << "+" << bigmat(j,k).imag() << "j";
+      if (k<(N2-1)) std::cout << ",";
+    }
+    std::cout << "\n";
+  }
+  return 0;
+}
 
 // this function advances the chain of propagators from ell to lastell
 // it forms and returns the next block in bigmat 
@@ -193,16 +407,14 @@ Eigen::MatrixXcd memoryModel::nextBlock(int J, int lastell)
     
     mkl_set_num_threads(1);
     #pragma omp parallel for schedule(dynamic)
-    for (int k = 0; k < drc2; ++k) {
+    for (int k = 0; k < drc2; ++k)
+    {
         Eigen::Map<MatrixXcdRowMajor> BmatRk(BmatR.row(k).data(), N, N);
         Eigen::Map<MatrixXcdRowMajor> Rk(Result.row(k).data(), N, N);
-    
-        // Because MKL is set to 1 thread, these GEMMs happen entirely within 
-        // the private L2 cache of whichever core grabbed this 'k' iteration.
         Eigen::MatrixXcd temp = Amat.conjugate() * BmatRk;
         Rk.noalias() = temp * Amat.transpose();
     }
-    mkl_set_num_threads(8);
+    mkl_set_num_threads(56);
     nb.block((j-(ell+1))*drc2, 0, drc2, N2) = Result;
   }
   ell = lastell;
@@ -375,7 +587,6 @@ Eigen::VectorXcd memoryModel::pinvvec(const Eigen::VectorXcd &vec, double tolera
 // propagate 1RDM with memory model for all delay values at once
 int memoryModel::qpropALL(void)
 {
-  // pred1rdms.resize(numdelays, Eigen::MatrixXcd::Zero(drc2, nsteps+1));
   // initialize pred1rdms
   for (int i=0; i<numdelays; ++i)
   {
@@ -408,17 +619,35 @@ int memoryModel::qpropALL(void)
         {
           // compute the bigmat once
           // note that this resets Amat and our internal ell
+          auto t1 = std::chrono::steady_clock::now();
           bigmatBuild(J, jell);
+          auto t2 = std::chrono::steady_clock::now();
           mySVD(bigmat);
+          auto t3 = std::chrono::steady_clock::now();
+          std::chrono::duration<double> e1 = t2 - t1;
+          std::chrono::duration<double> e2 = t3 - t2;
+          /*
+          std::cout << "bigmatBuild: " << e1.count() << " seconds\n";
+          std::cout << "mySVD: " << e2.count() << " seconds\n"; 
+          */
         }
         else
         {
           // grab the next block
           // note that this updates Amat and our internal ell
+          auto t1 = std::chrono::steady_clock::now();
           Eigen::MatrixXcd nb = nextBlock(J, jell);
+          auto t2 = std::chrono::steady_clock::now();
           // computed updated SVD and note it gets placed in u2,s2,v2
           updateSVD(nb);
+          auto t3 = std::chrono::steady_clock::now();
           // manually update u1,s1,v1
+          std::chrono::duration<double> e1 = t2 - t1;
+          std::chrono::duration<double> e2 = t3 - t2;
+          /*
+          std::cout << "nextBlock: " << e1.count() << " seconds\n";
+          std::cout << "updateSVD: " << e2.count() << " seconds\n";  
+          */
           u1 = u2;
           s1 = s2;
           v1 = v2;
@@ -433,267 +662,106 @@ int memoryModel::qpropALL(void)
   return 0;
 }
 
-memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays,
-                         double svdtol, std::string infile, std::string ioutfile)
-   : h(dt), T(T), freq(freq), amp(amp), ncyc(ncyc), delaystart(delaystart), delaystep(delaystep), numdelays(numdelays), 
-     tol(svdtol), outfile(std::move(ioutfile)), nsteps(static_cast<int>(std::ceil(T/h)))
+// propagate 1RDM with memory model for all delay values at once
+int memoryModel::qpropALLV2(void)
 {
-  offstep = static_cast<int>(std::ceil(ncyc / (dt * freq)));
-  std::cout << "Field will be on for " << offstep << " time steps\n";
-  // Load the entire .npz file into a map-like structure
-  cnpy::npz_t my_npz = cnpy::npz_load(infile);
-
-  // Load ham
-  cnpy::NpyArray arr = my_npz["ham"];
-  double* hamdata = arr.data<double>();
-  size_t length = arr.shape[0];
-  Eigen::Map<Eigen::VectorXd> H0_map(hamdata, length);
-  H0 = H0_map;
-  drcCI = (int) length;
-  drcCI2 = drcCI*drcCI;
-  std::cout << "drcCI = " << drcCI << "\n";
-
-  // Load dipole moment matrix (in z direction)
-  arr = my_npz["CIdimatz"];
-  double* cidimatz = arr.data<double>();
-  Eigen::Map<Eigen::VectorXd> CIdimatz(cidimatz, drcCI2);
-  Eigen::Map<const Eigen::MatrixXd> dimatz_map(CIdimatz.data(), drcCI, drcCI);
-  dimatz = dimatz_map;
-    
-  // Load Bten  
-  arr = my_npz["Bten"];
-  double* Btendata = arr.data<double>();
-  length = arr.shape[0]*arr.shape[1]*arr.shape[2]*arr.shape[3];
-  drc = (int) arr.shape[2];
-  drc2 = drc*drc;
-  std::cout << "drc = " << drc << "\n";
-  Eigen::Map<Eigen::VectorXd> Bten(Btendata, length);
-  Eigen::Map<const Eigen::MatrixXd> Bmat_map(Bten.data(), drc2, drcCI2);
-  Bmat = Bmat_map;
-
-  // initialize various objects
-  coeffs.setZero(drcCI, nsteps+1);
-  true1rdms.setZero(drc2, nsteps+1);
+  std::vector<Eigen::MatrixXcd> rdmprops;
+  rdmprops.resize(numdelays, Eigen::MatrixXcd::Identity(N2, drc2));
+  
+  // remove this as/when we eventually replace qpropALL with qpropALLV2
   pred1rdms.resize(numdelays, Eigen::MatrixXcd::Zero(drc2, nsteps+1));
-}
-
-int memoryModel::tdseProp(Eigen::VectorXcd& ic)
-{
-  double field = 0.0;
-  Eigen::MatrixXcd prop;
-  Eigen::VectorXcd D, Dexp;
-  std::complex<double> scalarfac = -1.0i * h;
-
-  // std::cout << "Received initial condition " << ic << "\n";
   
-  // copy initial condition into coeffs
-  for (int j=0; j<drcCI; ++j)
-    coeffs(j, 0) = ic(j);
-    
-  // initialize propagators to be the identity
-  props.resize(nsteps, Eigen::MatrixXcd::Identity(drcCI, drcCI));
-
-  for (int k=0; k<nsteps; ++k)
+  // initialize pred1rdms
+  for (int i=0; i<numdelays; ++i)
   {
-    Eigen::MatrixXcd H = H0.asDiagonal();
-    if (k < offstep)
-    {
-      field = amp * std::sin(2 * EIGEN_PI * freq * k * h);
-      // std::cout << "Time step j = " << k << "; field strength = " << field << "\n";
-      H += field * dimatz;
-      if (! H.isApprox(H.adjoint(), 1e-12)) std::cout << "H is not Hermitian at step " << k << "\n";
-      Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> solver(H);
-      D = solver.eigenvalues();
-      D = scalarfac * D;
-      Dexp = D.array().exp();
-      prop = solver.eigenvectors() * Dexp.asDiagonal() * solver.eigenvectors().adjoint();
-      props[k] = prop;
-    }
-    else
-    {
-      D = scalarfac * H0;
-      Dexp = D.array().exp();
-      props[k] = Dexp.asDiagonal();
-    }
-    coeffs.col(k+1) = props[k] * coeffs.col(k);
-    // std::cout << "coeffs.col(" << (k+1) << ") = " << coeffs.col(k+1) << "\n";
-  }
-  havecoeffs = true;
-  return 0;
-}
-
-int memoryModel::exact1RDMS(void)
-{
-  if (!havecoeffs)
-  {
-    std::cout << "TDCI coefficients have not been computed yet!\n";
-    return 1;
-  }
-  // compute ground truth 1RDMs
-  mkl_set_num_threads(1);
-
-  #pragma omp parallel for
-  for (int k=0; k<=nsteps; ++k)
-  {
-    // outer product
-    Eigen::MatrixXcd op = coeffs.col(k) * coeffs.col(k).adjoint();
-    // reduction
-    true1rdms.col(k) = Bmat * op.transpose().reshaped();
-  }
-  have1rdms = true;
-  return 0;
-}
-
-int memoryModel::filterIndices(void)
-{
-  if (!havecoeffs)
-  {
-    std::cout << "TDCI coefficients have not been computed yet!\n";
-    return 1;
-  }
-  const double thresh = 1e-10;
-  double rownorm;
-  for (int j=0; j<drcCI; ++j)
-  {
-    rownorm = coeffs.row(j).norm();
-    // std::cout << "Row " << j << " has norm = " << rownorm << "\n";
-    if (rownorm >= thresh) goodStates.insert(j);
+    int jell = delaystart + i*delaystep;
+    // copy in some ground truth 1RDMs
+    for (int k=0; k<=jell; ++k)
+      pred1rdms[i].col(k) = true1rdms.col(k);    
   }
 
-  // now figure out which entries in drcCI**2 space we should retain
-  int cnt = 0;
-  for (int row=0; row<drcCI; ++row)
-  {
-    for (int col=0; col<drcCI; ++col)
-    {
-      if (goodStates.find(row) != goodStates.end())
-        if (goodStates.find(col) != goodStates.end())
-          goodCols.push_back(cnt);
-      cnt++;
-    }    
-  }
-
-  N = goodStates.size();
-  N2 = N*N;
-  std::cout << "Retaining " << N2 << " or " << goodCols.size() << " entries\n";
-
-  // reduce the B matrix
-  BmatR = Bmat(Eigen::placeholders::all, goodCols);
-
-  // filter all the propagators
-  fprops.resize(nsteps, Eigen::MatrixXcd::Identity(N, N));
-  std::vector<int> goodStatesVec(goodStates.begin(), goodStates.end());
-  std::sort(goodStatesVec.begin(), goodStatesVec.end());
-
-  mkl_set_num_threads(1);
-  #pragma omp parallel for
-  for (int k=0; k<nsteps; ++k)
-    fprops[k] = props[k](goodStatesVec, goodStatesVec);
-  
-  filtered = true;
-  return 0;
-}
-
-int memoryModel::resetAmat(void)
-{
   if (!filtered)
   {
     std::cout << "Filtered indices and propagators must be computed first!\n";
     return 1;
-  }   
-  Amat.setIdentity(N, N);
-  ell = 0;
-  return 0;
-}
+  }
 
-// form bigmat at particular point in time for particular delay value
-// this function performs double duty as the "starting block" for the incremental approach
-int memoryModel::bigmatBuild(int J, int jell)
-{
-  if (!filtered)
+  // suppose that J-jell >= offstep
+  // then all the propagators we need to go backwards in time are in fact time-independent
+  // this means that for J >= jell + offstep we can build the 1-RDM propagator once and for all!
+  for (int J=delaystart; J<nsteps; ++J)
   {
-    std::cout << "Filtered indices and propagators must be computed first!\n";
-    return 1;
-  }  
-  // resize bigmat and store first block
-  bigmat.setZero( (jell+1)*drc2, N2 );
-  bigmat.block(0, 0, drc2, N2) = BmatR;
-
-  // this will hold our propagator chain
-  Amat.setIdentity( N, N );
-    
-  for (int j=1; j<=jell; ++j)
-  {
-    Amat = Amat * fprops[J - j];
-    MatrixXcdRowMajor Result(drc2, N2);
-    
-    mkl_set_num_threads(1);
-    #pragma omp parallel for schedule(dynamic)
-    for (int k=0; k<drc2; ++k)
+    std::cout << "Propagating 1RDM at time step " << J << "\n";
+    for (int i=0; i<numdelays; ++i)
     {
-      // Map the contiguous memory of the k-th row to an N x N matrix
-      Eigen::Map<MatrixXcdRowMajor> BmatRk(BmatR.row(k).data(), N, N);
-      Eigen::Map<MatrixXcdRowMajor> Rk(Result.row(k).data(), N, N);
-      
-      // Evaluate in two steps to guarantee two clean BLAS GEMM calls per batch
-      Eigen::MatrixXcd temp = Amat.conjugate() * BmatRk;
-      Rk.noalias() = temp * Amat.transpose();
+      int jell = delaystart + i*delaystep;
+      // catch the case where we cannot propagate the memory model because we don't have enough memory yet!
+      if ((J-jell) < 0)
+      {
+        pred1rdms[i].col(J+1) = true1rdms.col(J+1);
+      }
+      else if ((J-jell) >= offstep)
+      {
+        if ((J-jell) == offstep)
+        {
+          std::cout << "Building rdmprop for delay " << jell << "\n";
+          bigmatBuild(J, jell);
+          Eigen::MatrixXcd kronprop = Eigen::kroneckerProduct(fprops[J], fprops[J].conjugate());
+          rdmprops[i] = BmatR * kronprop * pseudoInverse(this->bigmat, this->tol);
+        }
+        Eigen::MatrixXcd qhist = pred1rdms[i].block(0, J-jell, drc2, jell+1).rowwise().reverse();
+        pred1rdms[i].col(J+1) = rdmprops[i] * qhist;
+      }
+      else
+      {
+        if (i==0)
+        {
+          // compute the bigmat once
+          // note that this resets Amat and our internal ell
+          auto t1 = std::chrono::steady_clock::now();
+          bigmatBuild(J, jell);
+          auto t2 = std::chrono::steady_clock::now();
+          mySVD(bigmat);
+          auto t3 = std::chrono::steady_clock::now();
+          std::chrono::duration<double> e1 = t2 - t1;
+          std::chrono::duration<double> e2 = t3 - t2;
+          /*
+          std::cout << "bigmatBuild: " << e1.count() << " seconds\n";
+          std::cout << "mySVD: " << e2.count() << " seconds\n";  
+          */
+        }
+        else
+        {
+          // grab the next block
+          // note that this updates Amat and our internal ell
+          auto t1 = std::chrono::steady_clock::now();
+          Eigen::MatrixXcd nb = nextBlock(J, jell);
+          auto t2 = std::chrono::steady_clock::now();
+          // computed updated SVD and note it gets placed in u2,s2,v2
+          updateSVD(nb);
+          auto t3 = std::chrono::steady_clock::now();
+          // manually update u1,s1,v1
+          std::chrono::duration<double> e1 = t2 - t1;
+          std::chrono::duration<double> e2 = t3 - t2;
+          /*
+          std::cout << "nextBlock: " << e1.count() << " seconds\n";
+          std::cout << "updateSVD: " << e2.count() << " seconds\n";   
+          */
+          u1 = u2;
+          s1 = s2;
+          v1 = v2;
+        }
+        Eigen::MatrixXcd qhist = pred1rdms[i].block(0, J-jell, drc2, jell+1).rowwise().reverse();
+        Eigen::VectorXcd PreconVec = pinvvec(qhist.reshaped(), this->tol);
+        Eigen::MatrixXcd Precon = PreconVec.reshaped(N, N);
+        pred1rdms[i].col(J+1) = BmatR * (fprops[J].adjoint() * Precon * fprops[J].transpose()).reshaped();
+      }
     }
-    mkl_set_num_threads(8);
-    bigmat.block(j*drc2, 0, drc2, N2) = Result;
   }
-  // update class data to reflect that Amat includes a chain up till this point
-  ell = jell;
   return 0;
 }
 
-int memoryModel::bigmatPrint(void)
-{
-  for (int j=0; j<bigmat.rows(); ++j)
-  {
-    for (int k=0; k<N2; ++k)
-    {
-      std::cout << std::setprecision(15) << bigmat(j,k).real() << "+" << bigmat(j,k).imag() << "j";
-      if (k<(N2-1)) std::cout << ",";
-    }
-    std::cout << "\n";
-  }
-  return 0;
-}
 
-// simple function that propagates 1RDM forward in time 
-// - take pseudoinverse of freshly constructed bigmat at each step
-// - don't worry about parallelization or incremental updates or anything
-Eigen::MatrixXcd memoryModel::qprop(int jell)
-{
-  // declare and initialize predicted 1RDMS
-  Eigen::MatrixXcd preds(drc2, nsteps+1);
-  preds.setZero();
-
-  // copy in some ground truth 1RDMs
-  for (int k=0; k<=jell; ++k)
-    preds.col(k) = true1rdms.col(k);
-  
-  if (!filtered)
-  {
-    std::cout << "Filtered indices and propagators must be computed first!\n";
-    return preds;
-  }
-  
-  // then loop over history and build bigmat and use pseudoinverse to propagate...
-  for (int k=jell; k<nsteps; ++k)
-  {
-    Eigen::MatrixXcd qhist = preds.block(0, k-jell, drc2, jell+1).rowwise().reverse();
-    bigmatBuild(k, jell);
-    // Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixXcd> cod(bigmat);
-    // cod.setThreshold(1e-10);
-    // Eigen::VectorXcd PreconVec = cod.solve(qhist.reshaped());
-    Eigen::VectorXcd PreconVec = pseudoInverseVec(qhist.reshaped(), bigmat, tol);
-    Eigen::MatrixXcd Precon = PreconVec.reshaped(N, N);
-    preds.col(k+1) = BmatR * (fprops[k].adjoint() * Precon * fprops[k].transpose()).reshaped();
-  }
-  return preds;
-}
 
 // 1. For REQUIRED parameters
 template <typename T>
@@ -719,7 +787,9 @@ void getOptional(const cxxopts::ParseResult& res, const std::string& key, T& var
 
 int main(int argc, char** argv)
 {
-  mkl_set_num_threads(8);
+  mkl_set_num_threads(56);
+  kmp_set_blocktime(0);
+  
   cxxopts::Options options("memoryFO", "Field-on memory model for 1RDM propagation");
   options.add_options()
   ("h,help", "Print usage")
@@ -741,7 +811,7 @@ int main(int argc, char** argv)
   std::vector<int> delayparams;
   std::string inpath, outpath;
   bool verbose, savemae, saveqprop;
-
+  
   // Required parameters
   getRequired(result, "time",    timeparams,  "Must specify time-stepping parameters dt,T!");
   getRequired(result, "field",   fieldparams, "Must specify field parameters freq,amp,ncyc!");
@@ -751,7 +821,7 @@ int main(int argc, char** argv)
   
   // Optional parameter
   getOptional(result, "tol", tol, 1e-6);
-
+  
   // change this to be mindelay, delaystep, numdelays
   // pass the raw parameters into the constructor, in keeping with the other (time & field) params
   int ncyc = static_cast<int>(std::round(fieldparams[2]));
@@ -762,48 +832,32 @@ int main(int argc, char** argv)
   mm.tdseProp(ic);
   mm.exact1RDMS();
   mm.filterIndices();
+  
   auto start = std::chrono::steady_clock::now();
   mm.qpropALL();
   auto end = std::chrono::steady_clock::now();
   std::chrono::duration<double> elapsed_seconds = end - start;
   std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
-  
-  // mm.bigmatBuild(100,5);
-  // mm.bigmatPrint();
-  /*
-  start = std::chrono::steady_clock::now();
-  std::vector<Eigen::MatrixXcd> preds;
-  preds.resize(delayparams[2], Eigen::MatrixXcd::Zero(mm.getdrc2(), mm.getnsteps()+1));
-  for (int i=0; i<delayparams[2]; ++i)
-  {
-    // std::cout << "\n\n";
-    int jell = delayparams[0] + i * delayparams[1];
-    std::cout << "delay = " << jell << "\n";
-    preds[i] = mm.qprop(jell);
-  }
-  end = std::chrono::steady_clock::now();
-  elapsed_seconds = end - start;
-  std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
-
   for (int i=0; i<delayparams[2]; ++i)
   {
     int jell = delayparams[0] + i * delayparams[1];
     std::cout << "\n\ndelay = " << jell << "\n";
-    double maePreds = (mm.getPred1rdms(i) - preds[i]).array().abs().mean();
-    std::cout << "MAE( batch predictions(i) - single prediction at i ) = " << maePreds << "\n";
-    double maeTruth1 = (mm.getTrue1rdms() - preds[i]).array().abs().mean();
-    std::cout << "MAE( truth - single prediction at i ) = " << maeTruth1 << "\n";
     double maeTruth2 = (mm.getTrue1rdms() - mm.getPred1rdms(i)).array().abs().mean();
     std::cout << "MAE( truth - batch predictions(i) ) = " << maeTruth2 << "\n";    
   }
-  */
+  
+  start = std::chrono::steady_clock::now();
+  mm.qpropALLV2();
+  end = std::chrono::steady_clock::now();
+  elapsed_seconds = end - start;
+  std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
+  for (int i=0; i<delayparams[2]; ++i)
+  {
+    int jell = delayparams[0] + i * delayparams[1];
+    std::cout << "\n\ndelay = " << jell << "\n";
+    double maeTruth2 = (mm.getTrue1rdms() - mm.getPred1rdms(i)).array().abs().mean();
+    std::cout << "MAE( truth - batch predictions(i) ) = " << maeTruth2 << "\n";    
+  }
   return 0;
 }
 
-
-    // std::cout << "Precon = " << std::setprecision(15) << Precon << "\n";
-    // Eigen::VectorXcd PtrueVec = (coeffs.col(k) * coeffs.col(k).adjoint()).transpose().reshaped();
-    // Eigen::MatrixXcd Ptrue = PtrueVec(goodCols).reshaped(N, N);
-    // std::cout << "Ptrue = " << std::setprecision(15) << Ptrue << "\n";    
-    // std::cout << "|| Precon - Ptrue || = " << std::setprecision(15) << (Precon - Ptrue).norm() << "\n";
-    // std::cout << "preds.col(k+1) = " << std::setprecision(15) << preds.col(k+1) << "\n";
