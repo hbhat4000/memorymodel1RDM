@@ -1,13 +1,20 @@
-# Compiler
-CXX      = icpx
+# Compiler (AOCC Clang C++)
+CXX      = clang++
+
+# AOCL Installation Prefix
+AOCL_DIR = /global/cfs/cdirs/m5214/hbhat512
 
 # Compiler flags
-CXXFLAGS = -O3 -xHost -m64 -std=c++20 -qopenmp \
-           -I /home/hbhat/include/eigen3/ \
-           -I /home/hbhat/include/
+# -march=native replaces Intel's -xHost
+# -fopenmp replaces Intel's -qopenmp
+CXXFLAGS = -O3 -march=native -m64 -std=c++20 -fopenmp \
+           -I $(AOCL_DIR)/include \
+           -I $(AOCL_DIR)/include/eigen3
 
 # Linker flags
-LDFLAGS  = -L/home/hbhat/lib -lcnpy -qmkl -qopenmp
+# Link order matters: High-level math (flame) -> Low-level math (blis) -> Utilities (aoclutils)
+LDFLAGS  = -L$(AOCL_DIR)/lib \
+           -lcnpy -lflame -lblis -laoclutils -fopenmp
 
 # Target
 TARGET   = memoryFO
@@ -22,4 +29,3 @@ $(TARGET): $(SRC)
 # Cleanup
 clean:
 	rm -f $(TARGET)
-

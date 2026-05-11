@@ -1,14 +1,10 @@
 // memory model
 // field-on case
 
-#define EIGEN_USE_MKL_ALL
+#define EIGEN_USE_BLAS 
+#define EIGEN_USE_LAPACKE
 
-#include <mkl.h>
 #include <omp.h>
-
-// This tells the compiler to intentionally crash if MKL is NOT using 32-bit integers (LP64)
-static_assert(sizeof(MKL_INT) == 4, "FATAL ERROR: MKL is using the ILP64 interface instead of LP64!");
-
 #include <Eigen/Core>
 #include <Eigen/Dense>
 
@@ -33,8 +29,6 @@ using namespace std::complex_literals;
 // Function to compute the Moore–Penrose pseudoinverse
 Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd &mat, double tolerance)
 {
-  mkl_set_num_threads(56);
-
   // Compute SVD: mat = U * Σ * Vᵀ
   Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd( mat );
 
@@ -58,7 +52,7 @@ class memoryModel
 {
   using MatrixXcdRowMajor = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
   const double h, T, tol, freq, amp;
-  const int ncyc, nsteps, delaystart, delaystep, numdelays;
+  const int ncyc, nsteps, delaystart, delaystep, numdelays, numthreads;
   const std::string outfile;
   int drc, drc2, drcCI, drcCI2;
   int N, N2;                               // N = number of good states
@@ -91,7 +85,7 @@ class memoryModel
   public:
     //constructor
     memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays,
-                double svdtol, std::string infile, std::string ioutfile);
+                double svdtol, int numthreads, std::string infile, std::string ioutfile);
 
     int getdrc(void) { return drc; }
     int getdrc2(void) { return drc2; }
@@ -142,9 +136,9 @@ class memoryModel
 
 
 memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays,
-                         double svdtol, std::string infile, std::string ioutfile)
+                         double svdtol, int numthreads, std::string infile, std::string ioutfile)
    : h(dt), T(T), freq(freq), amp(amp), ncyc(ncyc), delaystart(delaystart), delaystep(delaystep), numdelays(numdelays), 
-     tol(svdtol), outfile(std::move(ioutfile)), nsteps(static_cast<int>(std::ceil(T/h)))
+     tol(svdtol), numthreads(numthreads), outfile(std::move(ioutfile)), nsteps(static_cast<int>(std::ceil(T/h)))
 {
   offstep = static_cast<int>(std::ceil(ncyc / (dt * freq)));
   std::cout << "Field will be on for " << offstep << " time steps\n";
@@ -239,7 +233,6 @@ int memoryModel::exact1RDMS(void)
     return 1;
   }
   // compute ground truth 1RDMs
-  mkl_set_num_threads(1);
   #pragma omp parallel for
   for (int k=0; k<=nsteps; ++k)
   {
@@ -248,7 +241,6 @@ int memoryModel::exact1RDMS(void)
     // reduction
     true1rdms.col(k) = Bmat * op.transpose().reshaped();
   }
-  mkl_set_num_threads(56);
   have1rdms = true;
   return 0;
 }
@@ -294,12 +286,10 @@ int memoryModel::filterIndices(void)
   std::vector<int> goodStatesVec(goodStates.begin(), goodStates.end());
   std::sort(goodStatesVec.begin(), goodStatesVec.end());
 
-  mkl_set_num_threads(1);
   #pragma omp parallel for
   for (int k=0; k<nsteps; ++k)
     fprops[k] = props[k](goodStatesVec, goodStatesVec);
 
-  mkl_set_num_threads(56);
   filtered = true;
   return 0;
 }
@@ -324,20 +314,19 @@ int memoryModel::bigmatBuild(int J, int jell)
   {
     Amat = Amat * fprops[J - j];
     MatrixXcdRowMajor Result(drc2, N2);
-    
-    mkl_set_num_threads(1);
+    std::vector<Eigen::MatrixXcd> thread_temps(numthreads, Eigen::MatrixXcd(N, N));    
     #pragma omp parallel for schedule(dynamic)
     for (int k=0; k<drc2; ++k)
     {
-      // Map the contiguous memory of the k-th row to an N x N matrix
+      // Get the ID of the thread currently running this iteration
+      int tid = omp_get_thread_num();
       Eigen::Map<MatrixXcdRowMajor> BmatRk(BmatR.row(k).data(), N, N);
       Eigen::Map<MatrixXcdRowMajor> Rk(Result.row(k).data(), N, N);
-      
-      // Evaluate in two steps to guarantee two clean BLAS GEMM calls per batch
-      Eigen::MatrixXcd temp = Amat.conjugate() * BmatRk;
-      Rk.noalias() = temp * Amat.transpose();
+      // 3. Use .noalias() on BOTH steps to force Eigen to write directly 
+      // into our pre-allocated memory, preventing any hidden allocations!
+      thread_temps[tid].noalias() = Amat.conjugate() * BmatRk;
+      Rk.noalias() = thread_temps[tid] * Amat.transpose();
     }
-    mkl_set_num_threads(56);
     bigmat.block(j*drc2, 0, drc2, N2) = Result;
   }
   // update class data to reflect that Amat includes a chain up till this point
@@ -382,16 +371,17 @@ Eigen::MatrixXcd memoryModel::nextBlock(int J, int lastell)
     Amat = Amat * fprops[J - j];
     MatrixXcdRowMajor Result(drc2, N2);
     
-    mkl_set_num_threads(1);
+    std::vector<Eigen::MatrixXcd> thread_temps(numthreads, Eigen::MatrixXcd(N, N));
+    
     #pragma omp parallel for schedule(dynamic)
     for (int k = 0; k < drc2; ++k)
     {
-        Eigen::Map<MatrixXcdRowMajor> BmatRk(BmatR.row(k).data(), N, N);
-        Eigen::Map<MatrixXcdRowMajor> Rk(Result.row(k).data(), N, N);
-        Eigen::MatrixXcd temp = Amat.conjugate() * BmatRk;
-        Rk.noalias() = temp * Amat.transpose();
+      int tid = omp_get_thread_num();
+      Eigen::Map<MatrixXcdRowMajor> BmatRk(BmatR.row(k).data(), N, N);
+      Eigen::Map<MatrixXcdRowMajor> Rk(Result.row(k).data(), N, N);
+      thread_temps[tid].noalias() = Amat.conjugate() * BmatRk;
+      Rk.noalias() = thread_temps[tid] * Amat.transpose();
     }
-    mkl_set_num_threads(56);
     nb.block((j-(ell+1))*drc2, 0, drc2, N2) = Result;
   }
   ell = lastell;
@@ -787,8 +777,10 @@ void getOptional(const cxxopts::ParseResult& res, const std::string& key, T& var
 
 int main(int argc, char** argv)
 {
-  mkl_set_num_threads(56);
-  kmp_set_blocktime(0);
+  omp_set_max_active_levels(1); 
+  int num_threads = omp_get_max_threads();
+  std::cout << "num_threads = " << num_threads << "\n";
+  omp_set_num_threads(num_threads);
   
   cxxopts::Options options("memoryFO", "Field-on memory model for 1RDM propagation");
   options.add_options()
@@ -825,7 +817,7 @@ int main(int argc, char** argv)
   // change this to be mindelay, delaystep, numdelays
   // pass the raw parameters into the constructor, in keeping with the other (time & field) params
   int ncyc = static_cast<int>(std::round(fieldparams[2]));
-  memoryModel mm(timeparams[0], timeparams[1], fieldparams[0], fieldparams[1], ncyc, delayparams[0], delayparams[1], delayparams[2], tol, inpath, outpath);
+  memoryModel mm(timeparams[0], timeparams[1], fieldparams[0], fieldparams[1], ncyc, delayparams[0], delayparams[1], delayparams[2], tol, num_threads, inpath, outpath);
   Eigen::VectorXcd ic(mm.getdrcCI());
   ic.setZero();
   ic[0] = 1.0;
