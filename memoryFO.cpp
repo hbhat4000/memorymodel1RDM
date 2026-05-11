@@ -81,6 +81,8 @@ class memoryModel
   // return variables for updateSVD
   Eigen::MatrixXcd u2, v2;
   Eigen::VectorXd s2;
+  // temporary storage
+  std::vector<Eigen::MatrixXcd> thread_temps();
   
   public:
     //constructor
@@ -290,6 +292,9 @@ int memoryModel::filterIndices(void)
   for (int k=0; k<nsteps; ++k)
     fprops[k] = props[k](goodStatesVec, goodStatesVec);
 
+  // allocate temporary storage
+  thread_temps.resize(numthreads, Eigen::MatrixXcd(N, N));    
+  
   filtered = true;
   return 0;
 }
@@ -314,7 +319,6 @@ int memoryModel::bigmatBuild(int J, int jell)
   {
     Amat = Amat * fprops[J - j];
     MatrixXcdRowMajor Result(drc2, N2);
-    std::vector<Eigen::MatrixXcd> thread_temps(numthreads, Eigen::MatrixXcd(N, N));    
     #pragma omp parallel for schedule(dynamic)
     for (int k=0; k<drc2; ++k)
     {
@@ -369,10 +373,7 @@ Eigen::MatrixXcd memoryModel::nextBlock(int J, int lastell)
   for (int j=ell+1; j<=lastell; ++j)
   {
     Amat = Amat * fprops[J - j];
-    MatrixXcdRowMajor Result(drc2, N2);
-    
-    std::vector<Eigen::MatrixXcd> thread_temps(numthreads, Eigen::MatrixXcd(N, N));
-    
+    MatrixXcdRowMajor Result(drc2, N2);    
     #pragma omp parallel for schedule(dynamic)
     for (int k = 0; k < drc2; ++k)
     {
