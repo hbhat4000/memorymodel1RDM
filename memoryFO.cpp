@@ -648,7 +648,7 @@ int memoryModel::qpropALLV2(void)
   // std::cout << "Constructed kronprop of size " << kronprop.rows() << ", " << kronprop.cols() << "\n";
   
   // remove this as/when we eventually replace qpropALL with qpropALLV2
-  pred1rdms.resize(numdelays, Eigen::MatrixXcd::Zero(drc2, nsteps+1));
+  // pred1rdms.resize(numdelays, Eigen::MatrixXcd::Zero(drc2, nsteps+1));
   
   // initialize pred1rdms
   for (int i=0; i<numdelays; ++i)
@@ -839,18 +839,18 @@ int main(int argc, char** argv)
     std::cout << "MAE( truth - batch predictions(i) ) = " << maeTruth2 << "\n";    
   }
   
-  start = std::chrono::steady_clock::now();
-  mm.qpropALL();
-  end = std::chrono::steady_clock::now();
-  elapsed_seconds = end - start;
-  std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
-  for (int i=0; i<delayparams[2]; ++i)
-  {
-    int jell = delayparams[0] + i * delayparams[1];
-    std::cout << "\n\ndelay = " << jell << "\n";
-    double maeTruth2 = (mm.getTrue1rdms() - mm.getPred1rdms(i)).array().abs().mean();
-    std::cout << "MAE( truth - batch predictions(i) ) = " << maeTruth2 << "\n";    
-  }
+  // start = std::chrono::steady_clock::now();
+  // mm.qpropALL();
+  // end = std::chrono::steady_clock::now();
+  // elapsed_seconds = end - start;
+  // std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
+  // for (int i=0; i<delayparams[2]; ++i)
+  // {
+  //   int jell = delayparams[0] + i * delayparams[1];
+  //   std::cout << "\n\ndelay = " << jell << "\n";
+  //   double maeTruth2 = (mm.getTrue1rdms() - mm.getPred1rdms(i)).array().abs().mean();
+  //   std::cout << "MAE( truth - batch predictions(i) ) = " << maeTruth2 << "\n";    
+  // }
   return 0;
 }
 
