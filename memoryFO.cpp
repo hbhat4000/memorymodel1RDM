@@ -836,11 +836,18 @@ int main(int argc, char** argv)
     int jell = delayparams[0] + i * delayparams[1];
     std::cout << "\n\ndelay = " << jell << "\n";
     double maeTruth2 = (mm.getTrue1rdms() - mm.getPred1rdms(i)).array().abs().mean();
-    std::cout << "MAE( truth - batch predictions(i) ) = " << maeTruth2 << "\n";    
+    std::cout << "MAE( truth - new batch predictions(i) ) = " << maeTruth2 << "\n";    
   }
+
+  // check new way 
+  // against old way (using field-on propagators throughout the entire 1RDM propagation, even after field has been switched off)
   
+  // memoryModel mm2(timeparams[0], timeparams[1], fieldparams[0], fieldparams[1], ncyc, delayparams[0], delayparams[1], delayparams[2], tol, num_threads, inpath, outpath);
+  // mm2.tdseProp(ic);
+  // mm2.exact1RDMS();
+  // mm2.filterIndices();
   // start = std::chrono::steady_clock::now();
-  // mm.qpropALL();
+  // mm2.qpropALL();
   // end = std::chrono::steady_clock::now();
   // elapsed_seconds = end - start;
   // std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
@@ -848,8 +855,10 @@ int main(int argc, char** argv)
   // {
   //   int jell = delayparams[0] + i * delayparams[1];
   //   std::cout << "\n\ndelay = " << jell << "\n";
-  //   double maeTruth2 = (mm.getTrue1rdms() - mm.getPred1rdms(i)).array().abs().mean();
-  //   std::cout << "MAE( truth - batch predictions(i) ) = " << maeTruth2 << "\n";    
+  //   double maeTruth2 = (mm2.getTrue1rdms() - mm2.getPred1rdms(i)).array().abs().mean();
+  //   std::cout << "MAE( truth - old batch predictions(i) ) = " << maeTruth2 << "\n";    
+  //   double maeRel = (mm.getPred1rdms(i) - mm2.getPred1rdms(i)).array().abs().mean();
+  //   std::cout << "MAE( new batch predictions(i) - old batch predictions(i) ) = " << maeRel << "\n";    
   // }
   return 0;
 }
