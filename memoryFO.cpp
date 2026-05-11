@@ -82,7 +82,7 @@ class memoryModel
   Eigen::MatrixXcd u2, v2;
   Eigen::VectorXd s2;
   // temporary storage
-  std::vector<Eigen::MatrixXcd> thread_temps();
+  std::vector<Eigen::MatrixXcd> thread_temps;
   
   public:
     //constructor

@@ -14,7 +14,8 @@ CXXFLAGS = -O3 -march=native -m64 -std=c++20 -fopenmp \
 # Linker flags
 # Link order matters: High-level math (flame) -> Low-level math (blis) -> Utilities (aoclutils)
 LDFLAGS  = -L$(AOCL_DIR)/lib \
-           -lcnpy -lflame -lblis -laoclutils -fopenmp
+           -L$(AOCL_DIR)/lib64 \
+           -lcnpy -lflame -lblis-mt -laoclutils -fopenmp
 
 # Target
 TARGET   = memoryFO
