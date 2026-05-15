@@ -55,7 +55,7 @@ class memoryModel
 {
   const double h, T, tol, freq, amp;
   const int ncyc, nsteps, delaystart, delaystep, numdelays, numthreads;
-  const std::string outfile;
+  const std::string inpath, outpath;
   int drc, drc2, drcCI, drcCI2;
   int N, N2;                               // N = number of good states
   int offstep;                             // time step at which the field is switched off
@@ -86,8 +86,7 @@ class memoryModel
   
   public:
     //constructor
-    memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays,
-                double svdtol, int numthreads, std::string infile, std::string ioutfile);
+    memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays, double svdtol, int numthreads, std::string infile, std::string outpath);
 
     int getdrc(void) { return drc; }
     int getdrc2(void) { return drc2; }
@@ -130,18 +129,21 @@ class memoryModel
     // propagate 1RDM with memory model for all delay values at once
     int qpropALL(void);
     int qpropALLV2(void);
+
+    int saveResults(void);
 };
 
-
-memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays,
-                         double svdtol, int numthreads, std::string infile, std::string ioutfile)
-   : h(dt), T(T), freq(freq), amp(amp), ncyc(ncyc), delaystart(delaystart), delaystep(delaystep), numdelays(numdelays), 
-     tol(svdtol), numthreads(numthreads), outfile(std::move(ioutfile)), nsteps(static_cast<int>(std::ceil(T/h)))
+memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays, double svdtol, int numthreads, std::string infile, std::string outpath)
+   : h(dt), T(T), freq(freq), amp(amp), ncyc(ncyc), 
+     delaystart(delaystart), delaystep(delaystep), numdelays(numdelays), 
+     tol(svdtol), numthreads(numthreads), 
+     inpath(std::move(infile)), outpath(std::move(outpath)), 
+     nsteps(static_cast<int>(std::ceil(T/h)))
 {
   offstep = static_cast<int>(std::ceil(ncyc / (dt * freq)));
   std::cout << "Field will be on for " << offstep << " time steps\n";
   // Load the entire .npz file into a map-like structure
-  cnpy::npz_t my_npz = cnpy::npz_load(infile);
+  cnpy::npz_t my_npz = cnpy::npz_load(inpath);
 
   // Load ham
   cnpy::NpyArray arr = my_npz["ham"];
@@ -491,7 +493,8 @@ int memoryModel::qpropALLV2(void)
   int firsttimedep = 0;
   for (int J=delaystart; J<nsteps; ++J)
   {
-    std::cout << "Propagating 1RDM at time step " << J << "\n";
+    if ((J % 100) == 0)
+      std::cout << "Propagating 1RDM at time step " << J << "\n";
     for (int i=0; i<numdelays; ++i)
     {
       int jell = delaystart + i*delaystep;
@@ -515,21 +518,50 @@ int memoryModel::qpropALLV2(void)
       }
       else
       {
-        auto t1 = std::chrono::steady_clock::now();
+        // auto t1 = std::chrono::steady_clock::now();
         Eigen::MatrixXcd bigmat = bigmatBuildLocal(J, jell);
-        auto t2 = std::chrono::steady_clock::now();
+        // auto t2 = std::chrono::steady_clock::now();
         mySVD(bigmat);
-        auto t3 = std::chrono::steady_clock::now();
-        std::chrono::duration<double> e1 = t2 - t1;
-        std::chrono::duration<double> e2 = t3 - t2;
-        std::cout << "bigmatBuild: " << e1.count() << " seconds\n";
-        std::cout << "mySVD: " << e2.count() << " seconds\n";  
+        // auto t3 = std::chrono::steady_clock::now();
+        // std::chrono::duration<double> e1 = t2 - t1;
+        // std::chrono::duration<double> e2 = t3 - t2;
+        // std::cout << "bigmatBuild: " << e1.count() << " seconds\n";
+        // std::cout << "mySVD: " << e2.count() << " seconds\n";  
         Eigen::MatrixXcd qhist = pred1rdms[i].block(0, J-jell, drc2, jell+1).rowwise().reverse();
         Eigen::VectorXcd PreconVec = pinvvec(qhist.reshaped(), this->tol);
         Eigen::MatrixXcd Precon = PreconVec.reshaped(N, N);
         pred1rdms[i].col(J+1) = BmatR * (fprops[J].adjoint() * Precon * fprops[J].transpose()).reshaped();
       }
     }
+  }
+  return 0;
+}
+  
+int memoryModel::saveResults(void)
+{
+  // save to outfile
+  std::filesystem::path p(inpath);
+  std::string stem = p.stem().string();
+  std::string filename = stem + "_" + std::to_string(h) + ".txt";
+  // outpath comes from command-line argument
+  std::filesystem::path dir(outpath);
+  // this way we don't have to worry about trailing slashes
+  // outfile is defined right here for the first time
+  std::filesystem::path outfile = dir / filename;
+  // out is the actual thing we write to (below)
+  std::ofstream out(outfile);
+  // save parameters
+  out << "h = " << h << ", T = " << T << ", nsteps = " << nsteps << "\n";
+  out << "freq = " << freq << ", amp = " << amp << ", ncyc = " << ncyc << "\n";
+  out << "delaystart = " << delaystart << ", delaystep = " << delaystep << ", numdelays = " << numdelays << "\n";
+  // save all the MAEs
+  for (int i=0; i<numdelays; ++i)
+  {
+    int iell = delaystart + i * delaystep;
+    double maeTruth = (getTrue1rdms() - getPred1rdms(i)).array().abs().mean();
+    std::ostringstream oss;
+    oss << std::setprecision(17) << maeTruth;
+    out << iell << ", " << oss.str() << "\n";
   }
   return 0;
 }
@@ -570,7 +602,7 @@ int main(int argc, char** argv)
   ("field", "Freq,amp,ncyc of applied electric field in z direction", cxxopts::value<std::vector<double>>())
   ("delay", "Start,step,numdelays of delay range", cxxopts::value<std::vector<int>>())
   ("infile", "Input file path", cxxopts::value<std::string>())
-  ("outfile", "Output file path (for MAEs)", cxxopts::value<std::string>())
+  ("outpath", "Output file path (for MAEs)", cxxopts::value<std::string>())
   ("tol", "SVD tolerance", cxxopts::value<double>()->default_value("1e-6"));
   
   auto result = options.parse(argc, argv);
@@ -590,7 +622,7 @@ int main(int argc, char** argv)
   getRequired(result, "field",   fieldparams, "Must specify field parameters freq,amp,ncyc!");
   getRequired(result, "delay",   delayparams, "Must specify delay parameters start,step,numdelays!");
   getRequired(result, "infile",  inpath,      "Must specify input file!");
-  getRequired(result, "outfile", outpath,     "Must specify output file!");
+  getRequired(result, "outpath", outpath,     "Must specify output path!");
   
   // Optional parameter
   getOptional(result, "tol", tol, 1e-6);
@@ -606,53 +638,8 @@ int main(int argc, char** argv)
   mm.exact1RDMS();
   mm.filterIndices();
   mm.buildCache();
-
-
-  auto t0 = std::chrono::steady_clock::now();
-  auto bm1 = mm.bigmatFromCache(1000, 250);
-  auto t1 = std::chrono::steady_clock::now();
-  auto bm2 = mm.bigmatBuildLocal(1000, 250);
-  auto t2 = std::chrono::steady_clock::now();
-  std::cout << "Error = " << (bm1-bm2).array().abs().mean() << "\n";
-  std::chrono::duration<double> elapsed_seconds1 = t1 - t0;
-  std::chrono::duration<double> elapsed_seconds2 = t2 - t1;
-  std::cout << "bigmatFromCache time: " << elapsed_seconds1.count() << " seconds\n";
-  std::cout << "bigmatBuildLocal time: " << elapsed_seconds2.count() << " seconds\n";
-  
-  // auto start = std::chrono::steady_clock::now();
-  // mm.qpropALLV2();
-  // auto end = std::chrono::steady_clock::now();
-  // std::chrono::duration<double> elapsed_seconds = end - start;
-  // std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
-  // for (int i=0; i<delayparams[2]; ++i)
-  // {
-  //   int jell = delayparams[0] + i * delayparams[1];
-  //   std::cout << "\n\ndelay = " << jell << "\n";
-  //   double maeTruth2 = (mm.getTrue1rdms() - mm.getPred1rdms(i)).array().abs().mean();
-  //   std::cout << "MAE( truth - new batch predictions(i) ) = " << maeTruth2 << "\n";    
-  // }
-
-  // check new way 
-  // against old way (using field-on propagators throughout the entire 1RDM propagation, even after field has been switched off)
-  
-  // memoryModel mm2(timeparams[0], timeparams[1], fieldparams[0], fieldparams[1], ncyc, delayparams[0], delayparams[1], delayparams[2], tol, num_threads, inpath, outpath);
-  // mm2.tdseProp(ic);
-  // mm2.exact1RDMS();
-  // mm2.filterIndices();
-  // start = std::chrono::steady_clock::now();
-  // mm2.qpropALL();
-  // end = std::chrono::steady_clock::now();
-  // elapsed_seconds = end - start;
-  // std::cout << "Elapsed time: " << elapsed_seconds.count() << " seconds\n";
-  // for (int i=0; i<delayparams[2]; ++i)
-  // {
-  //   int jell = delayparams[0] + i * delayparams[1];
-  //   std::cout << "\n\ndelay = " << jell << "\n";
-  //   double maeTruth2 = (mm2.getTrue1rdms() - mm2.getPred1rdms(i)).array().abs().mean();
-  //   std::cout << "MAE( truth - old batch predictions(i) ) = " << maeTruth2 << "\n";    
-  //   double maeRel = (mm.getPred1rdms(i) - mm2.getPred1rdms(i)).array().abs().mean();
-  //   std::cout << "MAE( new batch predictions(i) - old batch predictions(i) ) = " << maeRel << "\n";    
-  // }
+  mm.qpropALLV2();
+  mm.saveResults();
   return 0;
 }
 
