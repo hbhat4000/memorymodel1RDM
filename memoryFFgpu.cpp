@@ -145,13 +145,12 @@ Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd& input, double tol)
     Eigen::Map<Eigen::MatrixXcd> U(reinterpret_cast<std::complex<double>*>(d_U), m, min_mn);
     Eigen::Map<Eigen::VectorXd> S(d_S, min_mn);
     
-    Eigen::VectorXd S_inv(min_mn);
-    for (int i = 0; i < min_mn; ++i) {
-        S_inv(i) = (S(i) > tol) ? 1.0 / S(i) : 0.0;
+    // Safely scale the columns of U in-place
+    for (int i = 0; i < min_mn; ++i)
+    {
+        double sinv_val = (S(i) > tol) ? 1.0 / S(i) : 0.0;
+        U.col(i) *= sinv_val; 
     }
-
-    // Scale U directly in Unified Memory (This is an O(N^2) memory operation, so the CPU handles it in <1 second)
-    U = U * S_inv.asDiagonal();
 
     // 7. Reconstruct Pseudoinverse on GPU using cuBLAS
     // We compute P^H = U_scaled * d_VT
@@ -402,6 +401,7 @@ int main(int argc, char** argv)
   Eigen::MatrixXcd pred1rdms(drc2, nsteps+1);
   if (verbose)
     std::cout << "About to propagate 1RDMs for " << nsteps << " steps\n";
+  
   for (int k=0; k<=delay; ++k)
     pred1rdms.col(k) = true1rdms.col(k);
 

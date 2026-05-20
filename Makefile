@@ -12,7 +12,9 @@ NVIDIA_DIR = /opt/spack-v1.1.1/opt/spack/linux-cascadelake/nvhpc-25.7-kfehydowyj
 
 # Compiler flags
 # -ccbin tells nvcc to use AOCC for the host code
-CXXFLAGS = -x cu -O3 -m64 -std=c++20 -arch=sm_80 -allow-unsupported-compiler -ccbin $(HOST_COMPILER) \
+CXXFLAGS = -x cu -O3 -m64 -std=c++20 -arch=sm_80 \
+           -allow-unsupported-compiler --expt-relaxed-constexpr \
+           -ccbin $(HOST_COMPILER) \
            -Xcompiler "-xHost -qopenmp -qmkl=parallel" \
            -I $(BASE_DIR)/include \
            -I $(BASE_DIR)/include/eigen3 \
