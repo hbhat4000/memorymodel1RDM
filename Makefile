@@ -1,29 +1,29 @@
+# underlying C++ compiler
+HOST_COMPILER = /opt/spack-v1.1.1/opt/spack/linux-cascadelake/intel-oneapi-compilers-2025.3.1-hc2qvxmvb44sbrcv4ialqzent27vxc2v/compiler/2025.3/bin/icpx
+
 # Compiler
 CXX      = nvcc 
 
-# AOCL Installation Prefix
-AOCL_DIR = /global/cfs/cdirs/m5214/hbhat512
+# base directory for Eigen, cnpy and cxxopts
+BASE_DIR = /home/hbhat
 
 # CUDA 12.9 directory
-NVIDIA_DIR = /opt/nvidia/hpc_sdk/Linux_x86_64/25.5/math_libs/12.9/targets/x86_64-linux
+NVIDIA_DIR = /opt/spack-v1.1.1/opt/spack/linux-cascadelake/nvhpc-25.7-kfehydowyjvjmze7hn7po2jkarxfml77/Linux_x86_64/2025/math_libs/12.9
 
 # Compiler flags
-# -arch=sm_90 is the critical flag for the H200 (Hopper architecture)
-# -Xcompiler forwards CPU-specific flags to the underlying host compiler
-CXXFLAGS = -O3 -m64 -std=c++20 -arch=sm_80 \
-           -Xcompiler "-march=native -fopenmp" \
-           -I $(AOCL_DIR)/include \
-           -I $(AOCL_DIR)/include/eigen3 \
+# -ccbin tells nvcc to use AOCC for the host code
+CXXFLAGS = -x cu -O3 -m64 -std=c++20 -arch=sm_80 -allow-unsupported-compiler -ccbin $(HOST_COMPILER) \
+           -Xcompiler "-xHost -qopenmp -qmkl=parallel" \
+           -I $(BASE_DIR)/include \
+           -I $(BASE_DIR)/include/eigen3 \
            -I $(NVIDIA_DIR)/include
 
 # Linker flags
-# Link order matters: High-level math (flame) -> Low-level math (blis) -> Utilities (aoclutils)
-# -lcusolver handles the GPU math, and -Xcompiler "-fopenmp" ensures the CPU threads link properly
-LDFLAGS  = -L$(AOCL_DIR)/lib \
-           -L$(AOCL_DIR)/lib64 \
-           -L$(NVIDIA_DIR)/lib \
-           -lcnpy -lflame -lblis-mt -laoclutils -lcusolver -lcublas \
-           -Xcompiler "-fopenmp"
+LDFLAGS  = -L$(BASE_DIR)/lib \
+           -L$(BASE_DIR)/lib64 \
+           -L$(NVIDIA_DIR)/lib64 \
+           -lcnpy -lcusolver -lcublas \
+           -Xcompiler "-qopenmp -qmkl=parallel"
 
 # Target
 TARGET   = memoryFF
