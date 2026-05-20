@@ -161,6 +161,7 @@ memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc,
 int memoryModel::tdseProp(const Eigen::VectorXcd& ic)
 {
   double field = 0.0;
+  Eigen::MatrixXcd H;
   Eigen::MatrixXcd prop;
   Eigen::VectorXcd D, Dexp;
   std::complex<double> scalarfac = -1.0i * h;
@@ -176,9 +177,9 @@ int memoryModel::tdseProp(const Eigen::VectorXcd& ic)
 
   for (int k=0; k<nsteps; ++k)
   {
-    Eigen::MatrixXcd H = H0.asDiagonal();
     if (k < offstep)
     {
+      H = H0.asDiagonal();
       field = amp * std::sin(2 * EIGEN_PI * freq * k * h);
       // std::cout << "Time step j = " << k << "; field strength = " << field << "\n";
       H += field * dimatz;

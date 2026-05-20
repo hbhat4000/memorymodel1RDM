@@ -4,6 +4,9 @@
 #define EIGEN_USE_BLAS 
 #define EIGEN_USE_LAPACKE
 
+#include <cuda_runtime.h>
+#include <cusolverDn.h>
+
 #include <omp.h>
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -45,25 +48,79 @@ Eigen::MatrixXcd redprop(int k, double h, const Eigen::VectorXd& hamiltonian, co
 }
 
 // Function to compute the Moore–Penrose pseudoinverse
-Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd &mat, double tolerance)
+Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd& input, double tol) 
 {
-  // Compute SVD: mat = U * Σ * Vᵀ
-  Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd( mat );
+    int m = input.rows();
+    int n = input.cols();
+    int lda = m;
+    int min_mn = std::min(m, n);
 
-  const Eigen::VectorXd &singularValues = svd.singularValues();
-  Eigen::VectorXd singularValuesInv(singularValues.size());
+    // 1. Initialize cuSOLVER
+    cusolverDnHandle_t cusolverH = nullptr;
+    cusolverDnCreate(&cusolverH);
 
-  // Invert singular values with tolerance to avoid division by zero
-  for (int i = 0; i < singularValues.size(); ++i)
-  {
-      if (singularValues(i) > tolerance)
-          singularValuesInv(i) = 1.0 / singularValues(i);
-      else
-          singularValuesInv(i) = 0.0;
-  }
+    // 2. Allocate Managed Memory (accessible by both CPU and GPU)
+    // cuDoubleComplex is CUDA's version of std::complex<double>
+    cuDoubleComplex *d_A, *d_U, *d_VT;
+    double *d_S, *d_rwork;
+    int *devInfo;
 
-  // Pseudoinverse formula: V * Σ⁺ * U^\dagger
-  return svd.matrixV() * singularValuesInv.asDiagonal() * svd.matrixU().adjoint();
+    cudaMallocManaged(&d_A, m * n * sizeof(cuDoubleComplex));
+    cudaMallocManaged(&d_U, m * min_mn * sizeof(cuDoubleComplex));   // Thin U
+    cudaMallocManaged(&d_VT, min_mn * n * sizeof(cuDoubleComplex));  // Thin V^T
+    cudaMallocManaged(&d_S, min_mn * sizeof(double));                // Singular values
+    cudaMallocManaged(&devInfo, sizeof(int));
+    cudaMallocManaged(&d_rwork, 5 * min_mn * sizeof(double));        // Real workspace for ZGESVD
+
+    // Copy input data directly into the managed buffer (zero translation needed)
+    memcpy(d_A, input.data(), m * n * sizeof(cuDoubleComplex));
+
+    // 3. Query cuSOLVER for required workspace size
+    int lwork = 0;
+    // 'S' requests the "Thin" SVD, which is vastly faster for tall/skinny matrices
+    cusolverDnZgesvd_bufferSize(cusolverH, m, n, &lwork);
+  
+    cuDoubleComplex *d_work;
+    cudaMallocManaged(&d_work, lwork * sizeof(cuDoubleComplex));
+
+    // 4. Fire off the SVD on the GPU!
+    cusolverDnZgesvd(
+        cusolverH, 'S', 'S', 
+        m, n, 
+        d_A, lda, 
+        d_S, 
+        d_U, lda, 
+        d_VT, min_mn, 
+        d_work, lwork, 
+        d_rwork, devInfo
+    );
+    
+    // Wait for the GPU to finish before the CPU reads the results
+    cudaDeviceSynchronize();
+
+    // 5. Wrap the managed pointers in Eigen Maps for easy math
+    // reinterpret_cast is perfectly safe here because std::complex<double> and cuDoubleComplex have identical memory layouts
+    Eigen::Map<Eigen::MatrixXcd> U(reinterpret_cast<std::complex<double>*>(d_U), m, min_mn);
+    Eigen::Map<Eigen::VectorXd> S(d_S, min_mn);
+    Eigen::Map<Eigen::MatrixXcd> VT(reinterpret_cast<std::complex<double>*>(d_VT), min_mn, n);
+
+    // 6. Compute the Pseudoinverse using the GPU's output
+    Eigen::VectorXd S_inv(min_mn);
+    for (int i = 0; i < min_mn; ++i) {
+        S_inv(i) = (S(i) > tol) ? 1.0 / S(i) : 0.0;
+    }
+
+    // Pseudoinverse = V * Sigma^{-1} * U^dagger
+    // Note: cuSOLVER returns V^H (which is VT). So V is VT.adjoint()
+    Eigen::MatrixXcd Pinv = VT.adjoint() * S_inv.asDiagonal() * U.adjoint();
+
+    // 7. Clean up VRAM
+    cudaFree(d_A); cudaFree(d_U); cudaFree(d_VT); cudaFree(d_S); 
+    cudaFree(d_work); cudaFree(d_rwork); cudaFree(devInfo);
+    cusolverDnDestroy(cusolverH);
+
+    // NRVO kicks in, no copy is made on return!
+    return Pinv;
 }
 
 // 1RDM propagator with memory length n (time steps) and time step h
