@@ -22,7 +22,7 @@ CXXFLAGS = -O3 -m64 -std=c++20 -arch=sm_80 \
 LDFLAGS  = -L$(AOCL_DIR)/lib \
            -L$(AOCL_DIR)/lib64 \
            -L$(NVIDIA_DIR)/lib \
-           -lcnpy -lflame -lblis-mt -laoclutils -lcusolver \
+           -lcnpy -lflame -lblis-mt -laoclutils -lcusolver -lcublas \
            -Xcompiler "-fopenmp"
 
 # Target

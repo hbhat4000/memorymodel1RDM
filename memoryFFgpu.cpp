@@ -4,6 +4,7 @@
 #define EIGEN_USE_BLAS 
 #define EIGEN_USE_LAPACKE
 
+#include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include <cusolverDn.h>
 
@@ -98,27 +99,59 @@ Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd& input, double tol)
     // Wait for the GPU to finish before the CPU reads the results
     cudaDeviceSynchronize();
 
+    std::cout << "Done with SVD on GPU!\n";
+
     // 5. Wrap the managed pointers in Eigen Maps for easy math
     // reinterpret_cast is perfectly safe here because std::complex<double> and cuDoubleComplex have identical memory layouts
-    Eigen::Map<Eigen::MatrixXcd> U(reinterpret_cast<std::complex<double>*>(d_U), m, min_mn);
-    Eigen::Map<Eigen::VectorXd> S(d_S, min_mn);
     Eigen::Map<Eigen::MatrixXcd> VT(reinterpret_cast<std::complex<double>*>(d_VT), min_mn, n);
 
-    // 6. Compute the Pseudoinverse using the GPU's output
+    // 6. Scale U by the inverse singular values
+    Eigen::Map<Eigen::MatrixXcd> U(reinterpret_cast<std::complex<double>*>(d_U), m, min_mn);
+    Eigen::Map<Eigen::VectorXd> S(d_S, min_mn);
+    
     Eigen::VectorXd S_inv(min_mn);
     for (int i = 0; i < min_mn; ++i) {
         S_inv(i) = (S(i) > tol) ? 1.0 / S(i) : 0.0;
     }
 
-    // Pseudoinverse = V * Sigma^{-1} * U^dagger
-    // Note: cuSOLVER returns V^H (which is VT). So V is VT.adjoint()
-    Eigen::MatrixXcd Pinv = VT.adjoint() * S_inv.asDiagonal() * U.adjoint();
+    // Scale U directly in Unified Memory (This is an O(N^2) memory operation, so the CPU handles it in <1 second)
+    U = U * S_inv.asDiagonal();
 
-    // 7. Clean up VRAM
+    // 7. Reconstruct Pseudoinverse on GPU using cuBLAS
+    // We compute P^H = U_scaled * d_VT
+    cuDoubleComplex *d_Ph;
+    cudaMallocManaged(&d_Ph, m * n * sizeof(cuDoubleComplex));
+
+    cublasHandle_t cublasH;
+    cublasCreate(&cublasH);
+
+    cuDoubleComplex alpha = {1.0, 0.0};
+    cuDoubleComplex beta = {0.0, 0.0};
+
+    // cublasZgemm performs C = alpha * A * B + beta * C
+    // A = d_U (m x min_mn), B = d_VT (min_mn x n), C = d_Ph (m x n)
+    cublasZgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, 
+                m, n, min_mn, 
+                &alpha, 
+                d_U, m, 
+                d_VT, min_mn, 
+                &beta, 
+                d_Ph, m);
+
+    cudaDeviceSynchronize();
+
+    std::cout << "Done with cublasZgemm!\n";
+
+    // Map the GPU result back to Eigen and take the adjoint to get P
+    Eigen::Map<Eigen::MatrixXcd> Ph(reinterpret_cast<std::complex<double>*>(d_Ph), m, n);
+    Eigen::MatrixXcd Pinv = Ph.adjoint();
+
+    // 8. Clean up VRAM
     cudaFree(d_A); cudaFree(d_U); cudaFree(d_VT); cudaFree(d_S); 
-    cudaFree(d_work); cudaFree(d_rwork); cudaFree(devInfo);
+    cudaFree(d_work); cudaFree(d_rwork); cudaFree(devInfo); cudaFree(d_Ph);
     cusolverDnDestroy(cusolverH);
-
+    cublasDestroy(cublasH);
+    
     // NRVO kicks in, no copy is made on return!
     return Pinv;
 }
@@ -133,7 +166,9 @@ Eigen::MatrixXcd qprop(int n, double h, const Eigen::VectorXd& hamiltonian, cons
     bigmat.block(j*drc2, 0, drc2, redCols.size()) = BmatT * redprop(-j, h, hamiltonian, redCols);
     
   Eigen::MatrixXcd bigmatpinv = pseudoInverse(bigmat, tol);
+  std::cout << "Computed pseudoInverse!\n";
   Eigen::MatrixXcd thisredprop = redprop(1, h, hamiltonian, redCols);
+  std::cout << "Computed thisredprop!\n";
   return BmatT * thisredprop * bigmatpinv;
 }
 
