@@ -26,6 +26,22 @@
 
 using namespace std::complex_literals;
 
+__global__ void add_bvec_kernel(cuDoubleComplex* d_target_col, const cuDoubleComplex* d_bvec, int drc2) 
+{
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid < drc2) 
+    {
+        cuDoubleComplex target_val = d_target_col[tid];
+        cuDoubleComplex b_val = d_bvec[tid];
+        
+        // Add bvec to the matrix multiplication result
+        target_val.x += b_val.x;
+        target_val.y += b_val.y;
+        
+        d_target_col[tid] = target_val;
+    }
+}
+
 __global__ void prep_temp2_kernel(
     const cuDoubleComplex* __restrict__ d_pred1rdms,
     const cuDoubleComplex* __restrict__ d_bvec,
@@ -151,7 +167,7 @@ Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd& input, double tol)
         double sinv_val = (S(i) > tol) ? 1.0 / S(i) : 0.0;
         U.col(i) *= sinv_val; 
     }
-
+    
     // 7. Reconstruct Pseudoinverse on GPU using cuBLAS
     // We compute P^H = U_scaled * d_VT
     cuDoubleComplex *d_Ph;
@@ -410,12 +426,6 @@ int main(int argc, char** argv)
   int threadsPerBlock = 256;
   int blocksPerGrid = (temp2_size + threadsPerBlock - 1) / threadsPerBlock;
 
-  cuDoubleComplex alpha = {1.0, 0.0};
-  cuDoubleComplex beta  = {1.0, 0.0}; // Beta is 1.0 so we ADD to the existing bvec
-
-  cublasHandle_t cublasH;
-  cublasCreate(&cublasH);
-
   cuDoubleComplex *d_thisqprop, *d_pred1rdms, *d_bvec, *d_temp2;
   
   size_t bytes = thisqprop.size() * sizeof(cuDoubleComplex);
@@ -433,44 +443,58 @@ int main(int argc, char** argv)
   bytes = drc2 * (delay+1) * sizeof(cuDoubleComplex);
   cudaMallocManaged(&d_temp2, bytes);
   
+  cublasHandle_t cublasH;
+  cublasCreate(&cublasH);
+  cuDoubleComplex alpha = {1.0, 0.0};
+  cuDoubleComplex beta_zero = {0.0, 0.0}; // Beta is 0.0 so cuBLAS completely OVERWRITES the target
+
+  int bvec_blocks = (drc2 + threadsPerBlock - 1) / threadsPerBlock;
+
   for (int k = delay; k < nsteps; ++k)
   {
-    // 1. Launch our custom kernel to build d_temp2 (asynchronously!)
+    // 1. Build d_temp2
     prep_temp2_kernel<<<blocksPerGrid, threadsPerBlock>>>(
         d_pred1rdms, d_bvec, d_temp2, k, delay, drc2
     );
 
-    // 2. Setup the target column pointer: pred1rdms.col(k+1)
+    // Check for synchronous launch errors
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+      printf("CUDA Error in prep_temp2_kernel: %s\n", cudaGetErrorString(err));
+      exit(-1);
+    }
+
     cuDoubleComplex* d_target_col = d_pred1rdms + ((k + 1) * drc2);
 
-    // 3. Copy bvec into the target column (Device-to-Device is nearly instant)
-    cudaMemcpyAsync(d_target_col, d_bvec, drc2 * sizeof(cuDoubleComplex), cudaMemcpyDeviceToDevice);
-
-    // 4. cuBLAS Matrix-Vector Multiply: target = alpha * thisqprop * temp2 + beta * target
+    // 2. cuBLAS computes: target = thisqprop * temp2 (overwriting whatever was there)
     cublasZgemv(cublasH, CUBLAS_OP_N,
                 drc2, temp2_size,
                 &alpha, 
-                d_thisqprop, drc2, // A matrix and its leading dimension
-                d_temp2, 1,        // x vector and its stride
-                &beta, 
-                d_target_col, 1);  // y vector and its stride
-  }
+                d_thisqprop, drc2, 
+                d_temp2, 1,        
+                &beta_zero,         // <--- STRICT ZERO
+                d_target_col, 1);  
 
-  // 5. Wait for all 20,000 steps to finish on the GPU
+    // 3. Add bvec explicitly via kernel (target = target + bvec)
+    add_bvec_kernel<<<bvec_blocks, threadsPerBlock>>>(d_target_col, d_bvec, drc2);
+  }
   cudaDeviceSynchronize();
-  
+
   cudaMemcpy(
     pred1rdms.data(), 
     d_pred1rdms, 
     pred1rdms.size() * sizeof(cuDoubleComplex), 
     cudaMemcpyDeviceToHost
   );
-  // for (int k=delay; k<nsteps; ++k)
-  // {
-  //  Eigen::MatrixXcd temp = pred1rdms.block(0, k-delay, drc2, delay+1).rowwise().reverse();
-  //  Eigen::MatrixXcd temp2 = (temp.colwise() - bvec).reshaped();
-  //  pred1rdms.col(k+1) = bvec + thisqprop * temp2;
-  // }
+  
+  /*
+  for (int k=delay; k<nsteps; ++k)
+  {
+    Eigen::MatrixXcd temp = pred1rdms.block(0, k-delay, drc2, delay+1).rowwise().reverse();
+    Eigen::MatrixXcd temp2 = (temp.colwise() - bvec).reshaped();
+    pred1rdms.col(k+1) = bvec + thisqprop * temp2;
+  }
+  */
   
   double mae = (true1rdms - pred1rdms).array().abs().mean();
   if (verbose)
