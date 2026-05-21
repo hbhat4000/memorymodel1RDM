@@ -23,31 +23,28 @@
 #include <fstream>
 #include <complex>
 #include <cmath>
+#include <utility>
 
 using namespace std::complex_literals;
 
-__global__ void build_V_kernel(const cuDoubleComplex* __restrict__ d_coeffs, 
-                               cuDoubleComplex* __restrict__ d_V, 
-                               int N, int nsteps_plus_1) 
+__global__ void scale_U_kernel(cuDoubleComplex* U, const double* S, int m, int min_mn, double tol) 
 {
-    long long tid = blockIdx.x * blockDim.x + threadIdx.x;
-    long long total_elements = (long long)N * N * nsteps_plus_1;
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int total_elements = m * min_mn;
     
     if (tid < total_elements) 
     {
-        // 1. Decode the flat thread ID into row/col indices
-        int p = tid % (N * N);
-        int k = tid / (N * N);
+        int c = tid / m; // Column index
+        double s_val = S[c];
         
-        int i = p % N;
-        int j = p / N;
+        // Use the tolerance to find the inverse
+        double sinv_val = (s_val > tol) ? 1.0 / s_val : 0.0;
         
-        // 2. Fetch the coefficients for step k
-        cuDoubleComplex c_i = d_coeffs[i + k * N];
-        cuDoubleComplex c_j = d_coeffs[j + k * N];
-        
-        // 3. V_{p,k} = c_j * conj(c_i)
-        d_V[tid] = cuCmul(c_j, cuConj(c_i));
+        // Scale the complex value
+        cuDoubleComplex u_val = U[tid];
+        u_val.x *= sinv_val;
+        u_val.y *= sinv_val;
+        U[tid] = u_val;
     }
 }
 
@@ -125,8 +122,8 @@ Eigen::VectorXcd redprop(int k, double h, const Eigen::VectorXd& hamiltonian, co
   return kronprop(redCols);
 }
 
-// Function to compute the Moore–Penrose pseudoinverse
-Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd& input, double tol) 
+// Function to compute the bare metal ingredients to compute the Moore–Penrose pseudoinverse
+std::pair<Eigen::MatrixXcd, Eigen::MatrixXcd> pseudoInverse(const Eigen::MatrixXcd& input, double tol) 
 {
     int m = input.rows();
     int n = input.cols();
@@ -139,19 +136,22 @@ Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd& input, double tol)
 
     // 2. Allocate Managed Memory (accessible by both CPU and GPU)
     // cuDoubleComplex is CUDA's version of std::complex<double>
+    size_t m_sz = m;
+    size_t n_sz = n;
+    size_t min_mn_sz = min_mn;
+
     cuDoubleComplex *d_A, *d_U, *d_VT;
     double *d_S, *d_rwork;
     int *devInfo;
 
-    cudaMallocManaged(&d_A, m * n * sizeof(cuDoubleComplex));
-    cudaMallocManaged(&d_U, m * min_mn * sizeof(cuDoubleComplex));   // Thin U
-    cudaMallocManaged(&d_VT, min_mn * n * sizeof(cuDoubleComplex));  // Thin V^T
-    cudaMallocManaged(&d_S, min_mn * sizeof(double));                // Singular values
+    cudaMallocManaged(&d_A, m_sz * n_sz * sizeof(cuDoubleComplex));
+    cudaMallocManaged(&d_U, m_sz * min_mn_sz * sizeof(cuDoubleComplex));   
+    cudaMallocManaged(&d_VT, min_mn_sz * n_sz * sizeof(cuDoubleComplex));  
+    cudaMallocManaged(&d_S, min_mn_sz * sizeof(double));                
     cudaMallocManaged(&devInfo, sizeof(int));
     cudaMallocManaged(&d_rwork, 5 * min_mn * sizeof(double));        // Real workspace for ZGESVD
-
-    // Copy input data directly into the managed buffer (zero translation needed)
-    cudaMemcpy(d_A, input.data(), m * n * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
+    
+    cudaMemcpy(d_A, input.data(), m_sz * n_sz * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
 
     // 3. Query cuSOLVER for required workspace size
     int lwork = 0;
@@ -175,61 +175,28 @@ Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd& input, double tol)
     
     // Wait for the GPU to finish before the CPU reads the results
     cudaDeviceSynchronize();
-
     std::cout << "Done with SVD on GPU!\n";
 
-    // 5. Wrap the managed pointers in Eigen Maps for easy math
-    // reinterpret_cast is perfectly safe here because std::complex<double> and cuDoubleComplex have identical memory layouts
-    Eigen::Map<Eigen::MatrixXcd> VT(reinterpret_cast<std::complex<double>*>(d_VT), min_mn, n);
-
-    // 6. Scale U by the inverse singular values
-    Eigen::Map<Eigen::MatrixXcd> U(reinterpret_cast<std::complex<double>*>(d_U), m, min_mn);
-    Eigen::Map<Eigen::VectorXd> S(d_S, min_mn);
-    
-    // Safely scale the columns of U in-place
-    for (int i = 0; i < min_mn; ++i)
-    {
-        double sinv_val = (S(i) > tol) ? 1.0 / S(i) : 0.0;
-        U.col(i) *= sinv_val; 
-    }
-    
-    // 7. Reconstruct Pseudoinverse on GPU using cuBLAS
-    // We compute P^H = U_scaled * d_VT
-    cuDoubleComplex *d_Ph;
-    cudaMallocManaged(&d_Ph, m * n * sizeof(cuDoubleComplex));
-
-    cublasHandle_t cublasH;
-    cublasCreate(&cublasH);
-
-    cuDoubleComplex alpha = {1.0, 0.0};
-    cuDoubleComplex beta = {0.0, 0.0};
-
-    // cublasZgemm performs C = alpha * A * B + beta * C
-    // A = d_U (m x min_mn), B = d_VT (min_mn x n), C = d_Ph (m x n)
-    cublasZgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, 
-                m, n, min_mn, 
-                &alpha, 
-                d_U, m, 
-                d_VT, min_mn, 
-                &beta, 
-                d_Ph, m);
-
+    // Safely scale the columns of U in-place using the custom GPU kernel we discussed earlier
+    int threads = 256;
+    int blocks = (m_sz * min_mn_sz + threads - 1) / threads;
+    scale_U_kernel<<<blocks, threads>>>(d_U, d_S, m, min_mn, tol);
     cudaDeviceSynchronize();
+    std::cout << "Columns of U have been scaled in-place on GPU!\n";
 
-    std::cout << "Done with cublasZgemm!\n";
+    Eigen::MatrixXcd U_ret(m, min_mn);
+    Eigen::MatrixXcd VT_ret(min_mn, n);
 
-    // Map the GPU result back to Eigen and take the adjoint to get P
-    Eigen::Map<Eigen::MatrixXcd> Ph(reinterpret_cast<std::complex<double>*>(d_Ph), m, n);
-    Eigen::MatrixXcd Pinv = Ph.adjoint();
+    // Explicitly copy the data from the GPU directly into the Eigen buffers
+    cudaMemcpy(U_ret.data(), d_U, m * min_mn * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+    cudaMemcpy(VT_ret.data(), d_VT, min_mn * n * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
 
-    // 8. Clean up VRAM
+    // Clean up VRAM safely
     cudaFree(d_A); cudaFree(d_U); cudaFree(d_VT); cudaFree(d_S); 
-    cudaFree(d_work); cudaFree(d_rwork); cudaFree(devInfo); cudaFree(d_Ph);
+    cudaFree(d_work); cudaFree(d_rwork); cudaFree(devInfo);
     cusolverDnDestroy(cusolverH);
-    cublasDestroy(cublasH);
     
-    // NRVO kicks in, no copy is made on return!
-    return Pinv;
+    return {U_ret, VT_ret};
 }
 
 // 1RDM propagator with memory length n (time steps) and time step h
@@ -245,11 +212,12 @@ Eigen::MatrixXcd qprop(int n, double h, const Eigen::VectorXd& hamiltonian, cons
     bigmat.block(j * drc2, 0, drc2, rCs).noalias() = Bmat * current_prop_vec.asDiagonal();
     current_prop_vec.array() *= base_prop_vec.array();
   }
-  Eigen::MatrixXcd bigmatpinv = pseudoInverse(bigmat, tol);
-  std::cout << "Computed pseudoInverse!\n";
+  auto [U_scaled, VT] = pseudoInverse(bigmat, tol);
+  std::cout << "Computed pseudoinverse!\n";
   Eigen::MatrixXcd thisredprop = redprop(1, h, hamiltonian, redCols).asDiagonal();
-  std::cout << "Computed thisredprop!\n";
-  return Bmat * thisredprop * bigmatpinv;
+  Eigen::MatrixXcd thisqprop = (((Bmat * thisredprop) * VT.adjoint()) * U_scaled.adjoint());
+  std::cout << "Computed thisqprop!\n";
+  return thisqprop;
 }
 
 int main(int argc, char** argv)
