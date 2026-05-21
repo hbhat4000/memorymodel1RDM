@@ -26,6 +26,31 @@
 
 using namespace std::complex_literals;
 
+__global__ void build_V_kernel(const cuDoubleComplex* __restrict__ d_coeffs, 
+                               cuDoubleComplex* __restrict__ d_V, 
+                               int N, int nsteps_plus_1) 
+{
+    long long tid = blockIdx.x * blockDim.x + threadIdx.x;
+    long long total_elements = (long long)N * N * nsteps_plus_1;
+    
+    if (tid < total_elements) 
+    {
+        // 1. Decode the flat thread ID into row/col indices
+        int p = tid % (N * N);
+        int k = tid / (N * N);
+        
+        int i = p % N;
+        int j = p / N;
+        
+        // 2. Fetch the coefficients for step k
+        cuDoubleComplex c_i = d_coeffs[i + k * N];
+        cuDoubleComplex c_j = d_coeffs[j + k * N];
+        
+        // 3. V_{p,k} = c_j * conj(c_i)
+        d_V[tid] = cuCmul(c_j, cuConj(c_i));
+    }
+}
+
 __global__ void add_bvec_kernel(cuDoubleComplex* d_target_col, const cuDoubleComplex* d_bvec, int drc2) 
 {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -208,29 +233,29 @@ Eigen::MatrixXcd pseudoInverse(const Eigen::MatrixXcd& input, double tol)
 }
 
 // 1RDM propagator with memory length n (time steps) and time step h
-Eigen::MatrixXcd qprop(int n, double h, const Eigen::VectorXd& hamiltonian, const std::vector<int>& redCols, const Eigen::MatrixXd& BmatT, double tol=1e-6)
+Eigen::MatrixXcd qprop(int n, double h, const Eigen::VectorXd& hamiltonian, const std::vector<int>& redCols, const Eigen::MatrixXd& Bmat, double tol=1e-6)
 {
-  int drc2 = BmatT.rows();
+  int drc2 = Bmat.rows();
   int rCs = redCols.size();
   Eigen::MatrixXcd bigmat((n+1)*drc2, rCs);
   Eigen::VectorXcd base_prop_vec = redprop(-1, h, hamiltonian, redCols);
   Eigen::VectorXcd current_prop_vec = Eigen::VectorXcd::Ones(rCs);
   for (int j=0; j<=n; ++j)
   {
-    bigmat.block(j * drc2, 0, drc2, rCs).noalias() = BmatT * current_prop_vec.asDiagonal();
+    bigmat.block(j * drc2, 0, drc2, rCs).noalias() = Bmat * current_prop_vec.asDiagonal();
     current_prop_vec.array() *= base_prop_vec.array();
   }
   Eigen::MatrixXcd bigmatpinv = pseudoInverse(bigmat, tol);
   std::cout << "Computed pseudoInverse!\n";
   Eigen::MatrixXcd thisredprop = redprop(1, h, hamiltonian, redCols).asDiagonal();
   std::cout << "Computed thisredprop!\n";
-  return BmatT * thisredprop * bigmatpinv;
+  return Bmat * thisredprop * bigmatpinv;
 }
 
 int main(int argc, char** argv)
 {
   // omp_set_max_active_levels(1); 
-  int num_threads = omp_get_max_threads();
+  int num_threads = 56; // omp_get_max_threads();
   std::cout << "num_threads = " << num_threads << "\n";
   // omp_set_num_threads(num_threads);
   Eigen::setNbThreads(num_threads);
@@ -325,29 +350,29 @@ int main(int argc, char** argv)
   if (((verbose)))
     std::cout << "drc = " << drc << "\n";
   Eigen::Map<Eigen::VectorXd> Bten(Btendata, length);
-  Eigen::Map<const Eigen::MatrixXd> BmatT(Bten.data(), drc2, drcCI2);
+  Eigen::Map<const Eigen::MatrixXd> Bmat(Bten.data(), drc2, drcCI2);
 
   Eigen::VectorXi diagcols(drcCI);
   for (int k=0; k<drcCI; ++k) 
     diagcols(k) = k * drcCI + k; 
 
-  // reduce the number of columns of BmatT
+  // reduce the number of columns of Bmat
   Eigen::VectorXd colnorms(drcCI2);
   std::vector<int> goodCols;
   goodCols.reserve(drcCI2);
   int diagcheck = 0;
-  Eigen::VectorXd bvec = Eigen::VectorXd::Zero(drc2);
+  Eigen::VectorXcd bvec = Eigen::VectorXd::Zero(drc2);
   for (int j=0; j<drcCI2; ++j)
   {
     // skip column whose index corresponds to diagonal entry of full density
     if (j==diagcols(diagcheck))
     {
-      bvec += BmatT.col(j)/drcCI;
+      bvec += Bmat.col(j)/drcCI;
       diagcheck++;
       continue;
     }
     // retain columns only if their norm exceeds a threshold
-    colnorms(j) = BmatT.col(j).norm();
+    colnorms(j) = Bmat.col(j).norm();
     if (colnorms[j] > 1e-14)
       goodCols.push_back(j);
   }
@@ -355,16 +380,13 @@ int main(int argc, char** argv)
     std::cout << "number of good cols = " << goodCols.size() << "\n";
 
   // create new matrix with selected columns
-  Eigen::MatrixXd BmatTgood(drc2, goodCols.size());
-  for (size_t j=0; j<goodCols.size(); ++j)
-    BmatTgood.col(j) = BmatT.col(goodCols[j]);
-
+  Eigen::MatrixXd BmatR = Bmat(Eigen::placeholders::all, goodCols);
   if (verbose)
   {
-    std::cout << "BmatTgood # of rows = " << BmatTgood.rows() << "\n";
-    std::cout << "BmatTgood # of cols = " << BmatTgood.cols() << "\n";
+    std::cout << "BmatR # of rows = " << BmatR.rows() << "\n";
+    std::cout << "BmatR # of cols = " << BmatR.cols() << "\n";
   }
-  Eigen::MatrixXcd thisqprop = qprop(delay, dt, ham, goodCols, BmatTgood, tol);
+  Eigen::MatrixXcd thisqprop = qprop(delay, dt, ham, goodCols, BmatR, tol);
   if (verbose)
   {
     std::cout << "thisqprop # of rows = " << thisqprop.rows() << "\n";
@@ -404,13 +426,13 @@ int main(int argc, char** argv)
 
   // compute ground truth 1RDMs
   Eigen::MatrixXcd true1rdms(drc2, nsteps+1);
-  Eigen::MatrixXcd op;
+  #pragma omp parallel for 
   for (int k=0; k<=nsteps; ++k)
   {
     // outer product
-    op = coeffs.col(k) * coeffs.col(k).adjoint();
+    Eigen::MatrixXcd op = coeffs.col(k) * coeffs.col(k).adjoint();
     // reduction
-    true1rdms.col(k) = BmatT * op.transpose().reshaped();
+    true1rdms.col(k) = Bmat * op.transpose().reshaped();
   }
 
   // set up predicted 1RDMs
@@ -440,7 +462,7 @@ int main(int argc, char** argv)
   cudaMallocManaged(&d_bvec, bytes);
   cudaMemcpy(d_bvec, bvec.data(), bytes, cudaMemcpyHostToDevice);
 
-  bytes = drc2 * (delay+1) * sizeof(cuDoubleComplex);
+  bytes = temp2_size * sizeof(cuDoubleComplex);
   cudaMallocManaged(&d_temp2, bytes);
   
   cublasHandle_t cublasH;
@@ -452,7 +474,6 @@ int main(int argc, char** argv)
 
   for (int k = delay; k < nsteps; ++k)
   {
-    // 1. Build d_temp2
     prep_temp2_kernel<<<blocksPerGrid, threadsPerBlock>>>(
         d_pred1rdms, d_bvec, d_temp2, k, delay, drc2
     );
