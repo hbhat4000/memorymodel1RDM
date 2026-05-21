@@ -30,16 +30,17 @@ infile = args.infile
 # Run the command and capture output
 j = 0
 for thisdelay in delayrange:
-    result = subprocess.run(['./memoryFF', '--dt', str(dt), '--delay', str(thisdelay), '--infile', str(infile)], capture_output=True, text=True)
-    maes[j] = float(result.stdout)
-    print("delay = " + str(thisdelay) + "; mae = " + str(maes[j]))
-    j += 1    
+    result = subprocess.run(['./memoryFF', '--dt', str(dt), '--delay', str(thisdelay), '--infile', str(infile), '--savemae','./pinnresults/','--verbose'], capture_output=True, text=True)
+    print(result)
+    # maes[j] = float(result.stdout)
+    # print("delay = " + str(thisdelay) + "; mae = " + str(maes[j]))
+    # j += 1    
 
-p = Path(infile)
-stem = p.stem
-outfile = 'maes_dt_' + str(dt) + '_' + stem + '.npz'
+# p = Path(infile)
+# stem = p.stem
+# outfile = 'maes_dt_' + str(dt) + '_' + stem + '.npz'
 
 # Save output
-np.savez(outfile, maes=maes, delayrange=delayrange, dt=dt)
+# np.savez(outfile, maes=maes, delayrange=delayrange, dt=dt)
 
 

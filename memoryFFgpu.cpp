@@ -175,14 +175,14 @@ std::pair<Eigen::MatrixXcd, Eigen::MatrixXcd> pseudoInverse(const Eigen::MatrixX
     
     // Wait for the GPU to finish before the CPU reads the results
     cudaDeviceSynchronize();
-    std::cout << "Done with SVD on GPU!\n";
+    // std::cout << "Done with SVD on GPU!\n";
 
     // Safely scale the columns of U in-place using the custom GPU kernel we discussed earlier
     int threads = 256;
     int blocks = (m_sz * min_mn_sz + threads - 1) / threads;
     scale_U_kernel<<<blocks, threads>>>(d_U, d_S, m, min_mn, tol);
     cudaDeviceSynchronize();
-    std::cout << "Columns of U have been scaled in-place on GPU!\n";
+    // std::cout << "Columns of U have been scaled in-place on GPU!\n";
 
     Eigen::MatrixXcd U_ret(m, min_mn);
     Eigen::MatrixXcd VT_ret(min_mn, n);
@@ -213,10 +213,10 @@ Eigen::MatrixXcd qprop(int n, double h, const Eigen::VectorXd& hamiltonian, cons
     current_prop_vec.array() *= base_prop_vec.array();
   }
   auto [U_scaled, VT] = pseudoInverse(bigmat, tol);
-  std::cout << "Computed pseudoinverse!\n";
+  // std::cout << "Computed pseudoinverse!\n";
   Eigen::MatrixXcd thisredprop = redprop(1, h, hamiltonian, redCols).asDiagonal();
   Eigen::MatrixXcd thisqprop = (((Bmat * thisredprop) * VT.adjoint()) * U_scaled.adjoint());
-  std::cout << "Computed thisqprop!\n";
+  // std::cout << "Computed thisqprop!\n";
   return thisqprop;
 }
 
