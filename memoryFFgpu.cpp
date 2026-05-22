@@ -25,16 +25,25 @@
 #include <cmath>
 #include <utility>
 
+#define CHECK_CUDA(call) { \
+    cudaError_t err = call; \
+    if (err != cudaSuccess) { \
+        fprintf(stderr, "CUDA Error at %s:%d - %s\n", __FILE__, __LINE__, cudaGetErrorString(err)); \
+        exit(EXIT_FAILURE); \
+    } \
+}
+
 using namespace std::complex_literals;
 
-__global__ void scale_U_kernel(cuDoubleComplex* U, const double* S, int m, int min_mn, double tol) 
+__global__ void scale_U_kernel(cuDoubleComplex* U, const double* S, size_t m, size_t min_mn, double tol) 
 {
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    int total_elements = m * min_mn;
+    // Cast blockIdx.x to size_t BEFORE multiplication to prevent 32-bit wrap-around
+    size_t tid = (size_t)blockIdx.x * blockDim.x + threadIdx.x;
+    size_t total_elements = m * min_mn;
     
     if (tid < total_elements) 
     {
-        int c = tid / m; // Column index
+        size_t c = tid / m; // Column index
         double s_val = S[c];
         
         // Use the tolerance to find the inverse
@@ -87,6 +96,17 @@ __global__ void prep_temp2_kernel(
         
         // Calculate flat indices
         int source_idx = source_col * drc2 + r; // pred1rdms has a leading dimension of drc2
+
+        /*
+        // Assuming max_allocated_cols is the true number of columns allocated for d_pred1rdms
+        int max_allocated_cols = 20001; 
+        int max_valid_idx = max_allocated_cols * drc2;
+        
+        if (source_idx < 0 || source_idx >= max_valid_idx) {
+            printf("CRASH PREVENTED: k=%d, c=%d, source_idx=%d is out of bounds!\n", k, c, source_idx);
+            return; // Exit thread early to prevent the actual segfault
+        }
+        */
         
         // Fetch values
         cuDoubleComplex val = d_pred1rdms[source_idx];
@@ -122,81 +142,140 @@ Eigen::VectorXcd redprop(int k, double h, const Eigen::VectorXd& hamiltonian, co
   return kronprop(redCols);
 }
 
-// Function to compute the bare metal ingredients to compute the Moore–Penrose pseudoinverse
-std::pair<Eigen::MatrixXcd, Eigen::MatrixXcd> pseudoInverse(const Eigen::MatrixXcd& input, double tol) 
+Eigen::MatrixXcd compute_qprop_gpu(const Eigen::MatrixXcd& input, const Eigen::MatrixXcd& M1, double tol) 
 {
     int m = input.rows();
     int n = input.cols();
     int lda = m;
     int min_mn = std::min(m, n);
 
-    // 1. Initialize cuSOLVER
+    // 1. Initialize Handles
     cusolverDnHandle_t cusolverH = nullptr;
     cusolverDnCreate(&cusolverH);
+    cusolverDnParams_t params;
+    cusolverDnCreateParams(&params);
+    
+    cublasHandle_t cublasH = nullptr;
+    cublasCreate(&cublasH);
 
-    // 2. Allocate Managed Memory (accessible by both CPU and GPU)
-    // cuDoubleComplex is CUDA's version of std::complex<double>
+    // 2. Allocate SVD Device Memory
     size_t m_sz = m;
     size_t n_sz = n;
     size_t min_mn_sz = min_mn;
 
     cuDoubleComplex *d_A, *d_U, *d_VT;
-    double *d_S, *d_rwork;
+    double *d_S;
     int *devInfo;
 
-    cudaMallocManaged(&d_A, m_sz * n_sz * sizeof(cuDoubleComplex));
-    cudaMallocManaged(&d_U, m_sz * min_mn_sz * sizeof(cuDoubleComplex));   
-    cudaMallocManaged(&d_VT, min_mn_sz * n_sz * sizeof(cuDoubleComplex));  
-    cudaMallocManaged(&d_S, min_mn_sz * sizeof(double));                
-    cudaMallocManaged(&devInfo, sizeof(int));
-    cudaMallocManaged(&d_rwork, 5 * min_mn * sizeof(double));        // Real workspace for ZGESVD
-    
-    cudaMemcpy(d_A, input.data(), m_sz * n_sz * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
+    CHECK_CUDA(cudaMalloc(&d_A, m_sz * n_sz * sizeof(cuDoubleComplex)));
+    CHECK_CUDA(cudaMalloc(&d_U, m_sz * min_mn_sz * sizeof(cuDoubleComplex)));   
+    CHECK_CUDA(cudaMalloc(&d_VT, min_mn_sz * n_sz * sizeof(cuDoubleComplex)));  
+    CHECK_CUDA(cudaMalloc(&d_S, min_mn_sz * sizeof(double)));                
+    CHECK_CUDA(cudaMalloc(&devInfo, sizeof(int)));
 
-    // 3. Query cuSOLVER for required workspace size
-    int lwork = 0;
-    // 'S' requests the "Thin" SVD, which is vastly faster for tall/skinny matrices
-    cusolverDnZgesvd_bufferSize(cusolverH, m, n, &lwork);
-  
-    cuDoubleComplex *d_work;
-    cudaMallocManaged(&d_work, lwork * sizeof(cuDoubleComplex));
+    CHECK_CUDA(cudaMemcpy(d_A, input.data(), m_sz * n_sz * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice));
 
-    // 4. Fire off the SVD on the GPU!
-    cusolverDnZgesvd(
-        cusolverH, 'S', 'S', 
-        m, n, 
-        d_A, lda, 
-        d_S, 
-        d_U, lda, 
-        d_VT, min_mn, 
-        d_work, lwork, 
-        d_rwork, devInfo
+    // 3. 64-bit SVD Workspace
+    size_t workspaceInBytesOnDevice = 0;
+    size_t workspaceInBytesOnHost = 0;
+
+    cusolverDnXgesvd_bufferSize(
+        cusolverH, params, 'S', 'S', 
+        static_cast<int64_t>(m), static_cast<int64_t>(n), 
+        CUDA_C_64F, d_A, static_cast<int64_t>(lda), 
+        CUDA_R_64F, d_S, 
+        CUDA_C_64F, d_U, static_cast<int64_t>(lda), 
+        CUDA_C_64F, d_VT, static_cast<int64_t>(min_mn), 
+        CUDA_C_64F, 
+        &workspaceInBytesOnDevice, 
+        &workspaceInBytesOnHost
     );
+
+    void *d_work = nullptr;
+    if (workspaceInBytesOnDevice > 0) CHECK_CUDA(cudaMalloc(&d_work, workspaceInBytesOnDevice));
+    void *h_work = nullptr;
+    if (workspaceInBytesOnHost > 0) h_work = malloc(workspaceInBytesOnHost);
+
+    // 4. Run SVD
+    cusolverDnXgesvd(
+        cusolverH, params, 'S', 'S', 
+        static_cast<int64_t>(m), static_cast<int64_t>(n), 
+        CUDA_C_64F, d_A, static_cast<int64_t>(lda), 
+        CUDA_R_64F, d_S, 
+        CUDA_C_64F, d_U, static_cast<int64_t>(lda), 
+        CUDA_C_64F, d_VT, static_cast<int64_t>(min_mn), 
+        CUDA_C_64F, 
+        d_work, workspaceInBytesOnDevice, h_work, workspaceInBytesOnHost, devInfo
+    );
+    CHECK_CUDA(cudaDeviceSynchronize());
+    std::cout << "Done with SVD on GPU!\n";
+
+    // 5. Scale U
+    size_t threads = 256;
+    size_t blocks = (m_sz * min_mn_sz + threads - 1) / threads;
     
-    // Wait for the GPU to finish before the CPU reads the results
-    cudaDeviceSynchronize();
-    // std::cout << "Done with SVD on GPU!\n";
+    // Pass m_sz and min_mn_sz directly, as they are already size_t
+    scale_U_kernel<<<blocks, threads>>>(d_U, d_S, m_sz, min_mn_sz, tol);
+    
+    CHECK_CUDA(cudaDeviceSynchronize());
+    std::cout << "Columns of U scaled on GPU!\n";
+    
+    // =========================================================================
+    // NEW MULTIPLICATION CHAIN (Avoids CPU download)
+    // =========================================================================
+    
+    int m1_rows = M1.rows();
+    int m1_cols = M1.cols();
+    
+    cuDoubleComplex *d_M1, *d_M2, *d_thisqprop;
+    CHECK_CUDA(cudaMalloc(&d_M1, m1_rows * m1_cols * sizeof(cuDoubleComplex)));
+    CHECK_CUDA(cudaMalloc(&d_M2, m1_rows * min_mn_sz * sizeof(cuDoubleComplex)));
+    CHECK_CUDA(cudaMalloc(&d_thisqprop, m1_rows * m_sz * sizeof(cuDoubleComplex)));
 
-    // Safely scale the columns of U in-place using the custom GPU kernel we discussed earlier
-    int threads = 256;
-    int blocks = (m_sz * min_mn_sz + threads - 1) / threads;
-    scale_U_kernel<<<blocks, threads>>>(d_U, d_S, m, min_mn, tol);
-    cudaDeviceSynchronize();
-    // std::cout << "Columns of U have been scaled in-place on GPU!\n";
+    // Upload tiny M1 to GPU
+    CHECK_CUDA(cudaMemcpy(d_M1, M1.data(), m1_rows * m1_cols * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice));
+    
+    cuDoubleComplex alpha = {1.0, 0.0};
+    cuDoubleComplex beta = {0.0, 0.0};
+    
+    // Step A: M2 = M1 * d_VT^H 
+    // M1 is (100 x 6530), d_VT^H is (6530 x 6530)
+    cublasZgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_C, 
+                m1_rows, min_mn_sz, m1_cols, 
+                &alpha, 
+                d_M1, m1_rows, 
+                d_VT, min_mn_sz, 
+                &beta, 
+                d_M2, m1_rows);
+    CHECK_CUDA(cudaDeviceSynchronize());
 
-    Eigen::MatrixXcd U_ret(m, min_mn);
-    Eigen::MatrixXcd VT_ret(min_mn, n);
-
-    // Explicitly copy the data from the GPU directly into the Eigen buffers
-    cudaMemcpy(U_ret.data(), d_U, m * min_mn * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
-    cudaMemcpy(VT_ret.data(), d_VT, min_mn * n * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
-
-    // Clean up VRAM safely
+    // Step B: thisqprop = M2 * d_U^H
+    // M2 is (100 x 6530), d_U^H is (6530 x 300100)
+    cublasZgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_C, 
+                m1_rows, m_sz, min_mn_sz, 
+                &alpha, 
+                d_M2, m1_rows, 
+                d_U, m_sz, 
+                &beta, 
+                d_thisqprop, m1_rows);
+    CHECK_CUDA(cudaDeviceSynchronize());
+    std::cout << "Computed thisqprop on GPU!\n";
+    
+    // Download ONLY the final 480 MB result
+    Eigen::MatrixXcd thisqprop_ret(m1_rows, m_sz);
+    CHECK_CUDA(cudaMemcpy(thisqprop_ret.data(), d_thisqprop, m1_rows * m_sz * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost));
+    
+    // 6. Clean up everything
     cudaFree(d_A); cudaFree(d_U); cudaFree(d_VT); cudaFree(d_S); 
-    cudaFree(d_work); cudaFree(d_rwork); cudaFree(devInfo);
+    cudaFree(d_M1); cudaFree(d_M2); cudaFree(d_thisqprop);
+    if (d_work) cudaFree(d_work); 
+    cudaFree(devInfo);
+    if (h_work) free(h_work);
+    cusolverDnDestroyParams(params);
     cusolverDnDestroy(cusolverH);
+    cublasDestroy(cublasH);
     
-    return {U_ret, VT_ret};
+    return thisqprop_ret;
 }
 
 // 1RDM propagator with memory length n (time steps) and time step h
@@ -207,25 +286,29 @@ Eigen::MatrixXcd qprop(int n, double h, const Eigen::VectorXd& hamiltonian, cons
   Eigen::MatrixXcd bigmat((n+1)*drc2, rCs);
   Eigen::VectorXcd base_prop_vec = redprop(-1, h, hamiltonian, redCols);
   Eigen::VectorXcd current_prop_vec = Eigen::VectorXcd::Ones(rCs);
+  
   for (int j=0; j<=n; ++j)
   {
     bigmat.block(j * drc2, 0, drc2, rCs).noalias() = Bmat * current_prop_vec.asDiagonal();
     current_prop_vec.array() *= base_prop_vec.array();
   }
-  auto [U_scaled, VT] = pseudoInverse(bigmat, tol);
-  // std::cout << "Computed pseudoinverse!\n";
+  
+  // Compute M1 on the CPU (it's extremely small and fast)
   Eigen::MatrixXcd thisredprop = redprop(1, h, hamiltonian, redCols).asDiagonal();
-  Eigen::MatrixXcd thisqprop = (((Bmat * thisredprop) * VT.adjoint()) * U_scaled.adjoint());
-  // std::cout << "Computed thisqprop!\n";
+  Eigen::MatrixXcd M1 = Bmat * thisredprop;
+  
+  // Hand bigmat and M1 to the GPU. The GPU will do the SVD, scaling, and all GEMMs.
+  Eigen::MatrixXcd thisqprop = compute_qprop_gpu(bigmat, M1, tol);
+  
   return thisqprop;
 }
 
 int main(int argc, char** argv)
 {
-  // omp_set_max_active_levels(1); 
-  int num_threads = 56; // omp_get_max_threads();
+  omp_set_max_active_levels(1); 
+  int num_threads = 96;
   std::cout << "num_threads = " << num_threads << "\n";
-  // omp_set_num_threads(num_threads);
+  omp_set_num_threads(num_threads);
   Eigen::setNbThreads(num_threads);
   
   cxxopts::Options options("memoryFF", "Field-free memory model for 1RDM propagation");
@@ -373,7 +456,7 @@ int main(int argc, char** argv)
   }
 
   // initialize coeff matrix and set initial condition
-  double T = 200.0;
+  double T = 500.0;
   int nsteps = static_cast<int>(std::ceil(T/dt));
   if (verbose)
     std::cout << "About to propagate full TDCI coefficients for " << nsteps << " steps\n";
@@ -391,6 +474,17 @@ int main(int argc, char** argv)
 
   if (verbose)
     std::cout << "Norm of solution at final time = " << coeffs.col(nsteps).norm() << "\n";
+
+  if (verbose)
+  {
+    std::filesystem::path p(infile);
+    std::string stem = p.stem().string();
+    std::string filename = stem + "_" + std::to_string(dt) + "_" + std::to_string(delay) + ".txt";
+    std::filesystem::path dir(outpath);
+    std::filesystem::path outfile = dir / filename;
+    std::ofstream out(outfile);
+    out << maestr << "\n";
+  }
 
   // compute ground truth 1RDMs
   Eigen::MatrixXcd true1rdms(drc2, nsteps+1);
@@ -419,19 +513,19 @@ int main(int argc, char** argv)
   cuDoubleComplex *d_thisqprop, *d_pred1rdms, *d_bvec, *d_temp2;
   
   size_t bytes = thisqprop.size() * sizeof(cuDoubleComplex);
-  cudaMallocManaged(&d_thisqprop, bytes);
-  cudaMemcpy(d_thisqprop, thisqprop.data(), bytes, cudaMemcpyHostToDevice);
+  CHECK_CUDA(cudaMalloc(&d_thisqprop, bytes));
+  CHECK_CUDA(cudaMemcpy(d_thisqprop, thisqprop.data(), bytes, cudaMemcpyHostToDevice));
 
   bytes = pred1rdms.size() * sizeof(cuDoubleComplex);
-  cudaMallocManaged(&d_pred1rdms, bytes);
-  cudaMemcpy(d_pred1rdms, pred1rdms.data(), bytes, cudaMemcpyHostToDevice);
+  CHECK_CUDA(cudaMalloc(&d_pred1rdms, bytes));
+  CHECK_CUDA(cudaMemcpy(d_pred1rdms, pred1rdms.data(), bytes, cudaMemcpyHostToDevice));
 
   bytes = bvec.size() * sizeof(cuDoubleComplex);
-  cudaMallocManaged(&d_bvec, bytes);
-  cudaMemcpy(d_bvec, bvec.data(), bytes, cudaMemcpyHostToDevice);
+  CHECK_CUDA(cudaMalloc(&d_bvec, bytes));
+  CHECK_CUDA(cudaMemcpy(d_bvec, bvec.data(), bytes, cudaMemcpyHostToDevice));
 
   bytes = temp2_size * sizeof(cuDoubleComplex);
-  cudaMallocManaged(&d_temp2, bytes);
+  CHECK_CUDA(cudaMalloc(&d_temp2, bytes));
   
   cublasHandle_t cublasH;
   cublasCreate(&cublasH);
@@ -467,14 +561,14 @@ int main(int argc, char** argv)
     // 3. Add bvec explicitly via kernel (target = target + bvec)
     add_bvec_kernel<<<bvec_blocks, threadsPerBlock>>>(d_target_col, d_bvec, drc2);
   }
-  cudaDeviceSynchronize();
+  CHECK_CUDA(cudaDeviceSynchronize());
 
-  cudaMemcpy(
+  CHECK_CUDA(cudaMemcpy(
     pred1rdms.data(), 
     d_pred1rdms, 
     pred1rdms.size() * sizeof(cuDoubleComplex), 
     cudaMemcpyDeviceToHost
-  );
+  ));
   
   /*
   for (int k=delay; k<nsteps; ++k)

@@ -30,7 +30,7 @@ infile = args.infile
 # Run the command and capture output
 j = 0
 for thisdelay in delayrange:
-    result = subprocess.run(['./memoryFF', '--dt', str(dt), '--delay', str(thisdelay), '--infile', str(infile), '--savemae','./pinnresults/','--verbose'], capture_output=True, text=True)
+    result = subprocess.run(['./memoryFF', '--dt', str(dt), '--delay', str(thisdelay), '--infile', str(infile), '--savemae','./deltaresults/','--verbose'], capture_output=True, text=True)
     print(result)
     # maes[j] = float(result.stdout)
     # print("delay = " + str(thisdelay) + "; mae = " + str(maes[j]))
