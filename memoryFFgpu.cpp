@@ -475,16 +475,23 @@ int main(int argc, char** argv)
   if (verbose)
     std::cout << "Norm of solution at final time = " << coeffs.col(nsteps).norm() << "\n";
 
+  /*
   if (verbose)
   {
     std::filesystem::path p(infile);
     std::string stem = p.stem().string();
-    std::string filename = stem + "_" + std::to_string(dt) + "_" + std::to_string(delay) + ".txt";
+    std::string filename = stem + "_" + std::to_string(dt) + "_" + std::to_string(delay) + "_coeffs.txt";
     std::filesystem::path dir(outpath);
     std::filesystem::path outfile = dir / filename;
     std::ofstream out(outfile);
-    out << maestr << "\n";
+    for (int k=0; k<=nsteps; ++k)
+    {
+      for (int l=0; l<drcCI; ++l)
+        out << coeffs(l, k).real() << "+" << coeffs(l, k).imag() << "j" << (l<(drcCI-1) ? "," : "");
+      out << "\n";
+    }
   }
+  */
 
   // compute ground truth 1RDMs
   Eigen::MatrixXcd true1rdms(drc2, nsteps+1);
@@ -578,8 +585,8 @@ int main(int argc, char** argv)
     pred1rdms.col(k+1) = bvec + thisqprop * temp2;
   }
   */
-  
-  double mae = (true1rdms - pred1rdms).array().abs().mean();
+
+  double mae = (true1rdms(Eigen::placeholders::all,Eigen::seq(delay+1,Eigen::placeholders::last)) - pred1rdms(Eigen::placeholders::all,Eigen::seq(delay+1,Eigen::placeholders::last))).array().abs().mean();
   if (verbose)
     std::cout << "Mean Absolute Error: " << mae << "\n";
 
