@@ -34,6 +34,7 @@ class memoryModel
   const double h, T, tol, freq, amp;
   const int ncyc, nsteps, delaystart, delaystep, numdelays, numthreads;
   const std::string inpath, outpath;
+  const bool savetraj;
   int drc, drc2, drcCI, drcCI2;
   int ell;                                 // state variable for grab methods
   int ellmax;                              // maximum delay/memory considered
@@ -68,7 +69,7 @@ class memoryModel
  
   public:
     //constructor
-    memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays, double svdtol, int numthreads, std::string infile, std::string outpath);
+    memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays, double svdtol, int numthreads, std::string infile, std::string outpath, bool savetraj, int g0, int g1);
 
     int getdrc(void) { return drc; }
     int getdrc2(void) { return drc2; }
@@ -109,12 +110,12 @@ class memoryModel
     int saveResults(void);
 };
 
-memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays, double svdtol, int numthreads, std::string infile, std::string outpath)
+memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays, double svdtol, int numthreads, std::string infile, std::string outpath, bool savetraj, int g0, int g1)
    : h(dt), T(T), freq(freq), amp(amp), ncyc(ncyc), 
      delaystart(delaystart), delaystep(delaystep), numdelays(numdelays), 
      tol(svdtol), numthreads(numthreads), 
      inpath(std::move(infile)), outpath(std::move(outpath)), 
-     nsteps(static_cast<int>(std::ceil(T/h)))
+     nsteps(static_cast<int>(std::ceil(T/h))), savetraj(savetraj)
 {
   offstep = static_cast<int>(std::ceil(ncyc / (dt * freq)));
   std::cout << "Field will be on for " << offstep << " time steps\n";
@@ -134,6 +135,13 @@ memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc,
   drcCI = (int) length;
   drcCI2 = drcCI*drcCI;
   std::cout << "drcCI = " << drcCI << "\n";
+
+  // Use negative frequency as a sentinel
+  if (freq < 0)
+  {
+    freq = (H0(g1) - H0(g0))/(2 * EIGEN_PI);
+  }
+  std::cout << "Frequency = " << freq << "\n";
 
   // Load dipole moment matrix (in z direction)
   arr = my_npz["CIdimatz"];
@@ -202,6 +210,24 @@ int memoryModel::tdseProp(const Eigen::VectorXcd& ic)
     // std::cout << "coeffs.col(" << (k+1) << ") = " << coeffs.col(k+1) << "\n";
   }
   havecoeffs = true;
+  if (savetraj)
+  {
+    std::filesystem::path p(inpath);
+    std::string stem = p.stem().string();
+    std::string filename = stem + "_" + std::to_string(h);
+    filename += "_" + std::to_string(freq);
+    filename += "_" + std::to_string(amp);
+    filename += "_" + std::to_string(ncyc) + "_coeffs.txt";
+    std::filesystem::path dir(outpath);
+    std::filesystem::path outfile = dir / filename;
+    std::ofstream out(outfile);
+    for (int k=0; k<=nsteps; ++k)
+    {
+      for (int l=0; l<drcCI; ++l)
+        out << coeffs(l, k).real() << "+" << coeffs(l, k).imag() << "j" << (l<(drcCI-1) ? "," : "");
+      out << "\n";
+    }
+  }
   return 0;
 }
 
@@ -576,7 +602,10 @@ int main(int argc, char** argv)
   ("delay", "Start,step,numdelays of delay range", cxxopts::value<std::vector<int>>())
   ("infile", "Input file path", cxxopts::value<std::string>())
   ("outpath", "Output file path (for MAEs)", cxxopts::value<std::string>())
-  ("tol", "SVD tolerance", cxxopts::value<double>()->default_value("1e-6"));
+  ("tol", "SVD tolerance", cxxopts::value<double>()->default_value("1e-6"))
+  ("savetraj", "Whether to save TDCI trajectory to disk", cxxopts::value<bool>()->default_value("false"))
+  ("g0", "Lower eigenvalue/frequency (if specifying gap)", cxxopts::value<int>()->default_value("0"))
+  ("g1", "Higher eigenvalue/frequency (if specifying gap)", cxxopts::value<int>()->default_value("1"));
   
   auto result = options.parse(argc, argv);
   if (result.count("help"))
@@ -588,7 +617,8 @@ int main(int argc, char** argv)
   std::vector<double> timeparams, fieldparams;
   std::vector<int> delayparams;
   std::string inpath, outpath;
-  bool verbose, savemae, saveqprop;
+  bool savetraj;
+  int g0, g1;
   
   // Required parameters
   getRequired(result, "time",    timeparams,  "Must specify time-stepping parameters dt,T!");
@@ -599,11 +629,14 @@ int main(int argc, char** argv)
   
   // Optional parameter
   getOptional(result, "tol", tol, 1e-6);
+  getOptional(result, "savetraj", savetraj, false);
+  getOptional(result, "g0", g0, 0);
+  getOptional(result, "g1", g1, 0);
   
   // change this to be mindelay, delaystep, numdelays
   // pass the raw parameters into the constructor, in keeping with the other (time & field) params
   int ncyc = static_cast<int>(std::round(fieldparams[2]));
-  memoryModel mm(timeparams[0], timeparams[1], fieldparams[0], fieldparams[1], ncyc, delayparams[0], delayparams[1], delayparams[2], tol, num_threads, inpath, outpath);
+  memoryModel mm(timeparams[0], timeparams[1], fieldparams[0], fieldparams[1], ncyc, delayparams[0], delayparams[1], delayparams[2], tol, num_threads, inpath, outpath, savetraj, g0, g1);
   Eigen::VectorXcd ic(mm.getdrcCI());
   ic.setZero();
   ic[0] = 1.0;
