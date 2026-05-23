@@ -43,6 +43,93 @@
 using namespace std::complex_literals;
 using MatrixXcdRowMajor = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
+// Kernel 1: Construct the Hamiltonian matrices for all field-on steps
+__global__ void build_H_batched_kernel(
+    cuDoubleComplex* d_H, const double* d_H0, const double* d_dimatz,
+    double amp, double freq, double h, double pi_val, int m, int batchSize)
+{
+    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    size_t total_elements = (size_t)batchSize * m * m;
+    
+    if (idx < total_elements) {
+        int k = idx / (m * m);
+        int rem = idx % (m * m);
+        int col = rem / m;
+        int row = rem % m;
+
+        double t = k * h;
+        double field = amp * sin(2.0 * pi_val * freq * t);
+
+        // d_dimatz is read from memory assuming Column-Major (standard Eigen)
+        double val_real = field * d_dimatz[col * m + row]; 
+        double val_imag = 0.0;
+
+        if (row == col) {
+            val_real += d_H0[row];
+        }
+        d_H[idx] = {val_real, val_imag};
+    }
+}
+
+// Kernel 2: Reconstruct the unitary propagators U = V * exp(-ihD) * V^H
+__global__ void build_props_batched_kernel(
+    cuDoubleComplex* d_props, const cuDoubleComplex* d_V, const double* d_W,
+    double h, int m, int batchSize)
+{
+    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    size_t total = (size_t)batchSize * m * m;
+    
+    if (idx < total) {
+        int k = idx / (m * m);
+        int rem = idx % (m * m);
+        int col = rem / m;
+        int row = rem % m;
+
+        cuDoubleComplex sum = {0.0, 0.0};
+        
+        for (int j = 0; j < m; ++j) {
+            cuDoubleComplex v1 = d_V[k * m * m + j * m + row]; // V(row, j)
+            cuDoubleComplex v2 = d_V[k * m * m + j * m + col]; // V(col, j)
+
+            double phase = -h * d_W[k * m + j];
+            double cos_p = cos(phase);
+            double sin_p = sin(phase);
+
+            // term = v1 * exp(-i * h * W) * conj(v2)
+            double r1 = v1.x * cos_p - v1.y * sin_p;
+            double i1 = v1.x * sin_p + v1.y * cos_p;
+
+            sum.x += r1 * v2.x - i1 * (-v2.y);
+            sum.y += r1 * (-v2.y) + i1 * v2.x;
+        }
+        d_props[idx] = sum;
+    }
+}
+
+// Kernel 3: Generate the diagonal field-off propagators
+__global__ void build_props_fieldoff_kernel(
+    cuDoubleComplex* d_props, const double* d_H0,
+    double h, int m, int offstep, int nsteps)
+{
+    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    size_t total = (size_t)(nsteps - offstep) * m * m;
+    
+    if (idx < total) {
+        int k_rel = idx / (m * m);
+        int k = k_rel + offstep;
+        int rem = idx % (m * m);
+        int col = rem / m;
+        int row = rem % m;
+
+        if (row == col) {
+            double phase = -h * d_H0[row];
+            d_props[k * m * m + col * m + row] = {cos(phase), sin(phase)};
+        } else {
+            d_props[k * m * m + col * m + row] = {0.0, 0.0};
+        }
+    }
+}
+
 __global__ void extract_R_kernel(cuDoubleComplex* d_R, const cuDoubleComplex* d_A, int m, int n) 
 {
     int r = blockIdx.y * blockDim.y + threadIdx.y;
@@ -292,7 +379,7 @@ memoryModel::memoryModel(double dt, double T, double infreq, double amp, int ncy
      delay(delay),
      tol(svdtol), numthreads(numthreads), 
      inpath(std::move(infile)), outpath(std::move(outpath)), 
-     nsteps(static_cast<int>(std::ceil(T/h))), verbose(verbose)
+     nsteps(static_cast<int>(std::ceil(T/h))), savetraj(savetraj), verbose(verbose)
 {
   // Load the entire .npz file into a map-like structure
   cnpy::npz_t my_npz = cnpy::npz_load(inpath);
@@ -345,62 +432,128 @@ memoryModel::memoryModel(double dt, double T, double infreq, double amp, int ncy
 
 int memoryModel::tdseProp(const Eigen::VectorXcd& ic)
 {
-  double field = 0.0;
-  Eigen::MatrixXcd H;
-  Eigen::MatrixXcd prop;
-  Eigen::VectorXcd D, Dexp;
-  std::complex<double> scalarfac = -1.0i * h;
+    int m = drcCI;
+    int m2 = m * m;
 
-  // copy initial condition into coeffs
-  for (int j=0; j<drcCI; ++j)
-    coeffs(j, 0) = ic(j);
-    
-  // initialize propagators to be the identity
-  props.resize(nsteps, Eigen::MatrixXcd::Identity(drcCI, drcCI));
+    // Initialize the CPU objects to standard sizes
+    props.resize(nsteps, Eigen::MatrixXcd::Identity(m, m));
+    for (int j = 0; j < m; ++j) coeffs(j, 0) = ic(j);
 
-  for (int k=0; k<nsteps; ++k)
-  {
-    if (k < offstep)
-    {
-      H = H0.asDiagonal();
-      field = amp * std::sin(2 * EIGEN_PI * freq * k * h);
-      H += field * dimatz;
-      if (! H.isApprox(H.adjoint(), 1e-12)) std::cout << "H is not Hermitian at step " << k << "\n";
-      Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> solver(H);
-      D = solver.eigenvalues();
-      D = scalarfac * D;
-      Dexp = D.array().exp();
-      prop = solver.eigenvectors() * Dexp.asDiagonal() * solver.eigenvectors().adjoint();
-      props[k] = prop;
+    // 1. Initialize GPU Handles
+    cusolverDnHandle_t cusolverH = nullptr;
+    cusolverDnCreate(&cusolverH);
+    syevjInfo_t syevj_params = nullptr;
+    cusolverDnCreateSyevjInfo(&syevj_params);
+    cublasHandle_t cublasH = nullptr;
+    cublasCreate(&cublasH);
+
+    // 2. Allocate Device Memory
+    double *d_H0, *d_dimatz;
+    cuDoubleComplex *d_props, *d_coeffs;
+    CHECK_CUDA(cudaMalloc(&d_H0, m * sizeof(double)));
+    CHECK_CUDA(cudaMalloc(&d_dimatz, m2 * sizeof(double)));
+    CHECK_CUDA(cudaMalloc(&d_props, nsteps * m2 * sizeof(cuDoubleComplex)));
+    CHECK_CUDA(cudaMalloc(&d_coeffs, (nsteps + 1) * m * sizeof(cuDoubleComplex)));
+
+    cuDoubleComplex *d_H = nullptr;
+    double *d_W = nullptr;
+    int *d_info = nullptr;
+    if (offstep > 0) {
+        CHECK_CUDA(cudaMalloc(&d_H, offstep * m2 * sizeof(cuDoubleComplex)));
+        CHECK_CUDA(cudaMalloc(&d_W, offstep * m * sizeof(double)));
+        CHECK_CUDA(cudaMalloc(&d_info, offstep * sizeof(int)));
     }
-    else
-    {
-      D = scalarfac * H0;
-      Dexp = D.array().exp();
-      props[k] = Dexp.asDiagonal();
+
+    // 3. Upload Static Data
+    CHECK_CUDA(cudaMemcpy(d_H0, H0.data(), m * sizeof(double), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_dimatz, dimatz.data(), m2 * sizeof(double), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_coeffs, coeffs.col(0).data(), m * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice));
+
+    // 4. Batched Field-On Calculations
+    if (offstep > 0) {
+        // Build H matrices
+        size_t threads_H = 256;
+        size_t blocks_H = (offstep * m2 + threads_H - 1) / threads_H;
+        build_H_batched_kernel<<<blocks_H, threads_H>>>(d_H, d_H0, d_dimatz, amp, freq, h, EIGEN_PI, m, offstep);
+
+        // Batched Eigendecomposition Workspace
+        int lwork = 0;
+        cusolverDnZheevjBatched_bufferSize(
+            cusolverH, CUSOLVER_EIG_MODE_VECTOR, CUBLAS_FILL_MODE_LOWER,
+            m, d_H, m, d_W, &lwork, syevj_params, offstep);
+
+        cuDoubleComplex* d_work;
+        CHECK_CUDA(cudaMalloc(&d_work, lwork * sizeof(cuDoubleComplex)));
+
+        // Run Batched EigenSolver (d_H is overwritten with Eigenvectors V)
+        cusolverDnZheevjBatched(
+            cusolverH, CUSOLVER_EIG_MODE_VECTOR, CUBLAS_FILL_MODE_LOWER,
+            m, d_H, m, d_W, d_work, lwork, d_info, syevj_params, offstep);
+
+        // Form Propagators
+        size_t blocks_P = (offstep * m2 + threads_H - 1) / threads_H;
+        build_props_batched_kernel<<<blocks_P, threads_H>>>(d_props, d_H, d_W, h, m, offstep);
+
+        cudaFree(d_work);
     }
-    coeffs.col(k+1) = props[k] * coeffs.col(k);
-  }
-  havecoeffs = true;
-  if (savetraj)
-  {
-    std::filesystem::path p(inpath);
-    std::string stem = p.stem().string();
-    std::string filename = stem + "_" + std::to_string(h);
-    filename += "_" + std::to_string(freq);
-    filename += "_" + std::to_string(amp);
-    filename += "_" + std::to_string(ncyc) + "_coeffs.txt";
-    std::filesystem::path dir(outpath);
-    std::filesystem::path outfile = dir / filename;
-    std::ofstream out(outfile);
-    for (int k=0; k<=nsteps; ++k)
-    {
-      for (int l=0; l<drcCI; ++l)
-        out << coeffs(l, k).real() << "+" << coeffs(l, k).imag() << "j" << (l<(drcCI-1) ? "," : "");
-      out << "\n";
+
+    // 5. Field-Off Calculations
+    if (nsteps > offstep) {
+        size_t threads_off = 256;
+        size_t blocks_off = ((nsteps - offstep) * m2 + threads_off - 1) / threads_off;
+        build_props_fieldoff_kernel<<<blocks_off, threads_off>>>(d_props, d_H0, h, m, offstep, nsteps);
     }
-  }
-  return 0;
+
+    // 6. Sequential State Propagation
+    cuDoubleComplex alpha = {1.0, 0.0};
+    cuDoubleComplex beta = {0.0, 0.0};
+    for (int k = 0; k < nsteps; ++k) {
+        cublasZgemv(cublasH, CUBLAS_OP_N, m, m,
+                    &alpha, d_props + k * m2, m,
+                    d_coeffs + k * m, 1,
+                    &beta, d_coeffs + (k + 1) * m, 1);
+    }
+
+    // 7. Download Results Directly to CPU Objects
+    std::vector<cuDoubleComplex> h_props_flat(nsteps * m2);
+    CHECK_CUDA(cudaMemcpy(h_props_flat.data(), d_props, nsteps * m2 * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost));
+    for (int k = 0; k < nsteps; ++k) {
+        memcpy(props[k].data(), &h_props_flat[k * m2], m2 * sizeof(cuDoubleComplex));
+    }
+
+    CHECK_CUDA(cudaMemcpy(coeffs.data(), d_coeffs, (nsteps + 1) * m * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost));
+
+    // 8. Cleanup
+    cudaFree(d_H0); cudaFree(d_dimatz); cudaFree(d_props); cudaFree(d_coeffs);
+    if (offstep > 0) {
+        cudaFree(d_H); cudaFree(d_W); cudaFree(d_info);
+    }
+    cusolverDnDestroySyevjInfo(syevj_params);
+    cusolverDnDestroy(cusolverH);
+    cublasDestroy(cublasH);
+
+    havecoeffs = true;
+
+    // 9. Save Trajectory (from original code)
+    if (savetraj)
+    {
+        std::filesystem::path p(inpath);
+        std::string stem = p.stem().string();
+        std::string filename = stem + "_" + std::to_string(h);
+        filename += "_" + std::to_string(freq);
+        filename += "_" + std::to_string(amp);
+        filename += "_" + std::to_string(ncyc) + "_coeffs.txt";
+        std::filesystem::path dir(outpath);
+        std::filesystem::path outfile = dir / filename;
+        std::ofstream out(outfile);
+        for (int k = 0; k <= nsteps; ++k)
+        {
+            for (int l = 0; l < drcCI; ++l)
+                out << coeffs(l, k).real() << "+" << coeffs(l, k).imag() << "j" << (l < (drcCI - 1) ? "," : "");
+            out << "\n";
+        }
+    }
+    return 0;
 }
 
 int memoryModel::exact1RDMS(void)
@@ -938,10 +1091,15 @@ int main(int argc, char** argv)
   Eigen::VectorXcd ic(mm.getdrcCI());
   ic.setZero();
   ic[0] = 1.0;
+  std::cout << "Just before tdseProp\n";
   mm.tdseProp(ic);
+  std::cout << "Just after tdseProp\n";
   mm.exact1RDMS();
+  std::cout << "Just after exact1RDMS\n";
   mm.filterIndices();
+  std::cout << "Just after filterIndices\n";
   mm.buildPCC();
+  std::cout << "Just after buildPCC\n";
   mm.qpropALLV2();
   mm.saveResults();
   return 0;
