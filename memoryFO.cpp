@@ -31,10 +31,11 @@ using MatrixXcdRowMajor = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Ei
 
 class memoryModel
 {
-  const double h, T, tol, freq, amp;
+  const double h, T, tol, infreq, amp;
   const int ncyc, nsteps, delaystart, delaystep, numdelays, numthreads;
   const std::string inpath, outpath;
   const bool savetraj;
+  double freq;                             // actual frequency
   int drc, drc2, drcCI, drcCI2;
   int ell;                                 // state variable for grab methods
   int ellmax;                              // maximum delay/memory considered
@@ -69,7 +70,7 @@ class memoryModel
  
   public:
     //constructor
-    memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays, double svdtol, int numthreads, std::string infile, std::string outpath, bool savetraj, int g0, int g1);
+    memoryModel(double dt, double T, double infreq, double amp, int ncyc, int delaystart, int delaystep, int numdelays, double svdtol, int numthreads, std::string infile, std::string outpath, bool savetraj, int g0, int g1);
 
     int getdrc(void) { return drc; }
     int getdrc2(void) { return drc2; }
@@ -110,15 +111,13 @@ class memoryModel
     int saveResults(void);
 };
 
-memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc, int delaystart, int delaystep, int numdelays, double svdtol, int numthreads, std::string infile, std::string outpath, bool savetraj, int g0, int g1)
-   : h(dt), T(T), freq(freq), amp(amp), ncyc(ncyc), 
+memoryModel::memoryModel(double dt, double T, double infreq, double amp, int ncyc, int delaystart, int delaystep, int numdelays, double svdtol, int numthreads, std::string infile, std::string outpath, bool savetraj, int g0, int g1)
+   : h(dt), T(T), infreq(infreq), amp(amp), ncyc(ncyc), 
      delaystart(delaystart), delaystep(delaystep), numdelays(numdelays), 
      tol(svdtol), numthreads(numthreads), 
      inpath(std::move(infile)), outpath(std::move(outpath)), 
      nsteps(static_cast<int>(std::ceil(T/h))), savetraj(savetraj)
 {
-  offstep = static_cast<int>(std::ceil(ncyc / (dt * freq)));
-  std::cout << "Field will be on for " << offstep << " time steps\n";
   // Load the entire .npz file into a map-like structure
   cnpy::npz_t my_npz = cnpy::npz_load(inpath);
 
@@ -137,11 +136,14 @@ memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc,
   std::cout << "drcCI = " << drcCI << "\n";
 
   // Use negative frequency as a sentinel
-  if (freq < 0)
+  if (infreq < 0)
   {
     freq = (H0(g1) - H0(g0))/(2 * EIGEN_PI);
   }
+  else freq = infreq;
   std::cout << "Frequency = " << freq << "\n";
+  offstep = static_cast<int>(std::ceil(ncyc / (dt * freq)));
+  std::cout << "Field will be on for " << offstep << " time steps\n";
 
   // Load dipole moment matrix (in z direction)
   arr = my_npz["CIdimatz"];
@@ -540,7 +542,10 @@ int memoryModel::saveResults(void)
   // save to outfile
   std::filesystem::path p(inpath);
   std::string stem = p.stem().string();
-  std::string filename = stem + "_" + std::to_string(h) + ".txt";
+  std::string filename = stem + "_" + std::to_string(h);
+  filename += "_" + std::to_string(freq);
+  filename += "_" + std::to_string(amp);
+  filename += "_" + std::to_string(ncyc) + ".txt";
   // outpath comes from command-line argument
   std::filesystem::path dir(outpath);
   // this way we don't have to worry about trailing slashes
