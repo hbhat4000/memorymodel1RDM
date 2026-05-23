@@ -123,6 +123,7 @@ memoryModel::memoryModel(double dt, double T, double freq, double amp, int ncyc,
 
   // max delay/memory length that we consider
   ellmax = delaystart + numdelays*delaystep;
+  std::cout << "Max delay is " << ellmax << " time steps\n";
 
   // Load ham
   cnpy::NpyArray arr = my_npz["ham"];
@@ -433,9 +434,9 @@ int memoryModel::bigmatPrint(Eigen::MatrixXcd bigmat)
 // propagate 1RDM with memory model for all delay values at once
 int memoryModel::qpropALLV2(void)
 {
-  if (!builtbmc)
+  if (!builtpcc)
   {
-    std::cout << "Bigmat cache must be computed first!\n";
+    std::cout << "Propagator chain cache must be computed first!\n";
     return 1;
   }
   std::vector<Eigen::MatrixXcd> rdmprops;
@@ -463,7 +464,10 @@ int memoryModel::qpropALLV2(void)
       {
         if ((J-jell) == offstep)
         {
-          Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(bmc[J].block(0,0,(jell+1)*drc2,N2));
+          Eigen::MatrixXcd bigmat((jell+1)*drc2, N2);
+          bigmatFromCache(J, jell, bigmat);
+          Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(bigmat);
+          // Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(bmc[J].block(0,0,(jell+1)*drc2,N2));
           // compute pseudoinverse locally
           Eigen::VectorXd s_inv(svd.singularValues().size());
           for (int k = 0; k < svd.singularValues().size(); ++k)
@@ -476,8 +480,14 @@ int memoryModel::qpropALLV2(void)
       }
       else
       {
+        Eigen::MatrixXcd bigmat((jell+1)*drc2, N2);
+        if (J>=ellmax)
+          bigmatFromCache(J, jell, bigmat);
+        else
+          bigmatBuildLocal(J, jell, bigmat);
         // grab bigmat from the cache, take its SVD
-        Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(bmc[J].block(0,0,(jell+1)*drc2,N2));
+        Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(bigmat);
+        // Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(bmc[J].block(0,0,(jell+1)*drc2,N2));
         // compute pseudoinverse locally
         Eigen::VectorXd s_inv(svd.singularValues().size());
         for (int k = 0; k < svd.singularValues().size(); ++k)
@@ -553,6 +563,7 @@ int main(int argc, char** argv)
   int num_threads = omp_get_max_threads();
   std::cout << "num_threads = " << num_threads << "\n";
   omp_set_num_threads(num_threads);
+  Eigen::setNbThreads(num_threads);
   
   cxxopts::Options options("memoryFO", "Field-on memory model for 1RDM propagation");
   options.add_options()
@@ -597,9 +608,8 @@ int main(int argc, char** argv)
   mm.exact1RDMS();
   mm.filterIndices();
   mm.buildPCC();
-  mm.buildBMC();
+  // mm.buildBMC();
   mm.qpropALLV2();
   mm.saveResults();
   return 0;
 }
-

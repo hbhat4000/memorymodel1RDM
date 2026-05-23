@@ -1,38 +1,25 @@
-# underlying C++ compiler
-HOST_COMPILER = /opt/spack-v1.1.1/opt/spack/linux-cascadelake/intel-oneapi-compilers-2025.3.1-hc2qvxmvb44sbrcv4ialqzent27vxc2v/compiler/2025.3/bin/icpx
-# HOST_COMPILER = /sw/rh9.4/spack/v1.0.0/sw/linux-x86_64_v2/intel-oneapi-compilers-2025.2.0-a2xli3d/compiler/2025.2/bin/icpx
+# Compiler (AOCC Clang C++)
+CXX      = clang++
 
-# Compiler
-CXX      = nvcc 
-
-# base directory for Eigen, cnpy and cxxopts
-BASE_DIR = /home/hbhat
-# BASE_DIR = /u/hbhat
-
-# CUDA 12.9 directory
-NVIDIA_DIR = /opt/spack-v1.1.1/opt/spack/linux-cascadelake/nvhpc-25.7-kfehydowyjvjmze7hn7po2jkarxfml77/Linux_x86_64/2025/math_libs/12.9
-# NVIDIA_DIR = /opt/nvidia/hpc_sdk/Linux_x86_64/25.3/math_libs/12.8
+# AOCL Installation Prefix
+AOCL_DIR = /global/cfs/cdirs/m5214/hbhat512
 
 # Compiler flags
-# -ccbin tells nvcc to use AOCC for the host code
-CXXFLAGS = -x cu -O3 -m64 -std=c++20 -arch=sm_90 \
-           -allow-unsupported-compiler --expt-relaxed-constexpr \
-           -ccbin $(HOST_COMPILER) \
-           -Xcompiler "-xHost -qopenmp -qmkl=parallel" \
-           -I $(BASE_DIR)/include \
-           -I $(BASE_DIR)/include/eigen3 \
-           -I $(NVIDIA_DIR)/include
+# -march=native replaces Intel's -xHost
+# -fopenmp replaces Intel's -qopenmp
+CXXFLAGS = -O3 -march=native -m64 -std=c++20 -fopenmp \
+           -I $(AOCL_DIR)/include \
+           -I $(AOCL_DIR)/include/eigen3
 
 # Linker flags
-LDFLAGS  = -L$(BASE_DIR)/lib \
-           -L$(BASE_DIR)/lib64 \
-           -L$(NVIDIA_DIR)/lib64 \
-           -lcnpy -lcusolver -lcublas \
-           -Xcompiler "-qopenmp -qmkl=parallel"
+# Link order matters: High-level math (flame) -> Low-level math (blis) -> Utilities (aoclutils)
+LDFLAGS  = -L$(AOCL_DIR)/lib \
+           -L$(AOCL_DIR)/lib64 \
+           -lcnpy -lflame -lblis-mt -laoclutils -fopenmp
 
 # Target
 TARGET   = memoryFO
-SRC      = memoryFOgpu.cpp
+SRC      = memoryFO.cpp
 
 # Default rule
 all: $(TARGET)
