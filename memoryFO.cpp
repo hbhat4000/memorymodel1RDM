@@ -465,7 +465,10 @@ int memoryModel::qpropALLV2(void)
         if ((J-jell) == offstep)
         {
           Eigen::MatrixXcd bigmat((jell+1)*drc2, N2);
-          bigmatFromCache(J, jell, bigmat);
+          if (J>=ellmax)
+            bigmatFromCache(J, jell, bigmat);
+          else
+            bigmatBuildLocal(J, jell, bigmat);
           Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(bigmat);
           // Eigen::BDCSVD<Eigen::MatrixXcd, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(bmc[J].block(0,0,(jell+1)*drc2,N2));
           // compute pseudoinverse locally
