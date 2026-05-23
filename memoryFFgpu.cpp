@@ -1,7 +1,7 @@
 // memory model
 // field-free case
 
-#define EIGEN_USE_MKL
+#define EIGEN_USE_MKL_ALL
 
 #include <omp.h>
 #include <mkl.h>
@@ -306,7 +306,7 @@ Eigen::MatrixXcd qprop(int n, double h, const Eigen::VectorXd& hamiltonian, cons
 int main(int argc, char** argv)
 {
   omp_set_max_active_levels(1); 
-  int num_threads = 96;
+  int num_threads = 72;
   std::cout << "num_threads = " << num_threads << "\n";
   omp_set_num_threads(num_threads);
   Eigen::setNbThreads(num_threads);
@@ -456,7 +456,7 @@ int main(int argc, char** argv)
   }
 
   // initialize coeff matrix and set initial condition
-  double T = 500.0;
+  double T = 1000.0;
   int nsteps = static_cast<int>(std::ceil(T/dt));
   if (verbose)
     std::cout << "About to propagate full TDCI coefficients for " << nsteps << " steps\n";
@@ -475,7 +475,7 @@ int main(int argc, char** argv)
   if (verbose)
     std::cout << "Norm of solution at final time = " << coeffs.col(nsteps).norm() << "\n";
 
-  /*
+  /* UNCOMMENT THIS BLOCK IF YOU WANT TO SAVE THE TDCI TRAJECTORY TO DISK
   if (verbose)
   {
     std::filesystem::path p(infile);

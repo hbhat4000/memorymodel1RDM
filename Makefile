@@ -1,16 +1,17 @@
 # underlying C++ compiler
-# HOST_COMPILER = /opt/spack-v1.1.1/opt/spack/linux-cascadelake/intel-oneapi-compilers-2025.3.1-hc2qvxmvb44sbrcv4ialqzent27vxc2v/compiler/2025.3/bin/icpx
-HOST_COMPILER = /sw/rh9.4/spack/v1.0.0/sw/linux-x86_64_v2/intel-oneapi-compilers-2025.2.0-a2xli3d/compiler/2025.2/bin/icpx
+HOST_COMPILER = /opt/spack-v1.1.1/opt/spack/linux-cascadelake/intel-oneapi-compilers-2025.3.1-hc2qvxmvb44sbrcv4ialqzent27vxc2v/compiler/2025.3/bin/icpx
+# HOST_COMPILER = /sw/rh9.4/spack/v1.0.0/sw/linux-x86_64_v2/intel-oneapi-compilers-2025.2.0-a2xli3d/compiler/2025.2/bin/icpx
 
 # Compiler
 CXX      = nvcc 
 
 # base directory for Eigen, cnpy and cxxopts
-BASE_DIR = /u/hbhat
+BASE_DIR = /home/hbhat
+# BASE_DIR = /u/hbhat
 
 # CUDA 12.9 directory
-# NVIDIA_DIR = /opt/spack-v1.1.1/opt/spack/linux-cascadelake/nvhpc-25.7-kfehydowyjvjmze7hn7po2jkarxfml77/Linux_x86_64/2025/math_libs/12.9
-NVIDIA_DIR = /opt/nvidia/hpc_sdk/Linux_x86_64/25.3/math_libs/12.8
+NVIDIA_DIR = /opt/spack-v1.1.1/opt/spack/linux-cascadelake/nvhpc-25.7-kfehydowyjvjmze7hn7po2jkarxfml77/Linux_x86_64/2025/math_libs/12.9
+# NVIDIA_DIR = /opt/nvidia/hpc_sdk/Linux_x86_64/25.3/math_libs/12.8
 
 # Compiler flags
 # -ccbin tells nvcc to use AOCC for the host code
@@ -30,8 +31,8 @@ LDFLAGS  = -L$(BASE_DIR)/lib \
            -Xcompiler "-qopenmp -qmkl=parallel"
 
 # Target
-TARGET   = memoryFF
-SRC      = memoryFFgpu.cpp
+TARGET   = memoryFO
+SRC      = memoryFOgpu.cpp
 
 # Default rule
 all: $(TARGET)
