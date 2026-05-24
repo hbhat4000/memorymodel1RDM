@@ -1103,6 +1103,7 @@ int memoryModel::saveResults(void)
   std::filesystem::path p(inpath);
   std::string stem = p.stem().string();
   std::string filename = stem + "_" + std::to_string(h);
+  filename += "_" + std::to_string(delay);
   filename += "_" + std::to_string(freq);
   filename += "_" + std::to_string(amp);
   filename += "_" + std::to_string(ncyc) + ".txt";
