@@ -1,0 +1,66 @@
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 40 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 1 --verbose --savetraj
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 80 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 1 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 120 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 1 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 160 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 1 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 200 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 1 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 240 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 1 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 280 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 1 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 320 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 1 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 360 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 1 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 400 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 1 --verbose
+
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 40 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 2 --verbose --savetraj
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 80 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 120 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 160 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 200 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 240 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 280 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 320 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 360 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 400 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 2 --verbose
+
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 40 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 2 --verbose --savetraj
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 80 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 120 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 160 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 200 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 240 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 280 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 320 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 360 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 2 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 400 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 2 --verbose
+
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 40 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 3 --verbose --savetraj
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 80 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 120 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 160 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 200 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 240 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 280 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 320 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 360 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 400 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 0 --g1 3 --verbose
+
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 40 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 3 --verbose --savetraj
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 80 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 120 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 160 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 200 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 240 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 280 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 320 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 360 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 400 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 1 --g1 3 --verbose
+
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 40 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 2 --g1 3 --verbose --savetraj
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 80 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 2 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 120 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 2 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 160 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 2 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 200 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 2 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 240 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 2 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 280 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 2 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 320 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 2 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 360 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 2 --g1 3 --verbose
+./memoryFO --time 0.01,200.0 --field -1,0.1,5 --delay 400 --infile ../psi4data/fci_h2_sto-3g.npz --outpath . --g0 2 --g1 3 --verbose
+
