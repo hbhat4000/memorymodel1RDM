@@ -1,0 +1,4 @@
+h = 0.025, T = 500, nsteps = 20000
+freq = 0.25, amp = 0.1, ncyc = 5
+delaystart = 500, delaystep = 5, numdelays = 1
+500, -nan
