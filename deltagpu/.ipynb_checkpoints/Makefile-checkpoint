@@ -1,0 +1,41 @@
+HOST_COMPILER = /sw/rh9.4/spack/v1.0.0/sw/linux-x86_64_v2/intel-oneapi-compilers-2025.2.0-a2xli3d/compiler/2025.2/bin/icpx
+
+# Compiler
+CXX      = nvcc 
+
+# CUDA 12.9 directory
+NVIDIA_DIR = /opt/nvidia/hpc_sdk/Linux_x86_64/25.3/math_libs/lib64
+
+# home directory
+HOME_DIR = /u/hbhat
+
+# Compiler flags
+# -arch=sm_90 is the critical flag for the H200 (Hopper architecture)
+# -Xcompiler forwards CPU-specific flags to the underlying host compiler
+CXXFLAGS = -x cu -O3 -m64 -std=c++20 -arch=sm_90 \
+           -allow-unsupported-compiler --expt-relaxed-constexpr \
+           -ccbin $(HOST_COMPILER) \
+           -Xcompiler "-xHost -qopenmp -qmkl=parallel" \
+           -I $(HOME_DIR)/include \
+           -I $(NVIDIA_DIR)/include
+
+# Linker flags
+LDFLAGS  = -L$(HOME_DIR)/lib \ 
+           -L$(HOME_DIR)/lib64 \
+           -L$(NVIDIA_DIR)/lib \
+           -lcnpy -lcusolver -lcublas \
+           -Xcompiler "-qopenmp -qmkl=parallel"
+
+# Target
+TARGET   = memoryFO
+SRC      = memoryFOgpu.cpp
+
+# Default rule
+all: $(TARGET)
+
+$(TARGET): $(SRC)
+	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
+
+# Cleanup
+clean:
+	rm -f $(TARGET)
