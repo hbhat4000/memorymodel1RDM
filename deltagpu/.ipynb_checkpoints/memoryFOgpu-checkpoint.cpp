@@ -164,8 +164,8 @@ __global__ void build_props_batched_kernel(
         cuDoubleComplex sum = {0.0, 0.0};
         
         for (int j = 0; j < m; ++j) {
-            cuDoubleComplex v1 = d_V[k * m * m + j * m + row]; // V(row, j)
-            cuDoubleComplex v2 = d_V[k * m * m + j * m + col]; // V(col, j)
+            cuDoubleComplex v1 = d_V[(size_t)k * m * m + j * m + row]; // V(row, j)
+            cuDoubleComplex v2 = d_V[(size_t)k * m * m + j * m + col]; // V(col, j)
 
             double phase = -h * d_W[k * m + j];
             double cos_p = cos(phase);
@@ -199,9 +199,9 @@ __global__ void build_props_fieldoff_kernel(
 
         if (row == col) {
             double phase = -h * d_H0[row];
-            d_props[k * m * m + col * m + row] = {cos(phase), sin(phase)};
+            d_props[(size_t)k * m * m + col * m + row] = {cos(phase), sin(phase)};
         } else {
-            d_props[k * m * m + col * m + row] = {0.0, 0.0};
+            d_props[(size_t)k * m * m + col * m + row] = {0.0, 0.0};
         }
     }
 }
@@ -277,7 +277,10 @@ __global__ void bmat_mult_np_kernel(
 
     // pcc is a stacked array of contiguous N x N matrices.
     // We want the block for time J, delay block j. (j is 1-indexed).
-    const cuDoubleComplex* pcc_J_j_ptr = d_pcc + J * (delay * N * N) + (j - 1) * N * N;
+    // THIS IS SAFE
+    size_t pcc_idx = (size_t)J * (size_t)delay * (size_t)N2 + (size_t)(j-1) * (size_t)N2;
+    const cuDoubleComplex* pcc_J_j_ptr = d_pcc + pcc_idx;
+    // const cuDoubleComplex* pcc_J_j_ptr = d_pcc + J * (delay * N * N) + (j - 1) * N * N;
 
     for (int i = tid; i < N2; i += blockDim.x) {
         int u = i / N; // row index of R_k
