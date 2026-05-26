@@ -43,6 +43,82 @@
 using namespace std::complex_literals;
 using MatrixXcdRowMajor = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
+__global__ void init_pcc_j1_kernel(
+    cuDoubleComplex* d_pcc,
+    const cuDoubleComplex* d_fprops,
+    int delay, int N, int pccsize, int delay_start)
+{
+    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int num_J = pccsize - delay_start + 1;
+    size_t total = (size_t)num_J * N * N;
+
+    if (idx < total) {
+        int J_offset = idx / (N * N);
+        int J = delay_start + J_offset;
+        int mat_idx = idx % (N * N);
+
+        // d_pcc layout: [J] [delay] [N * N]
+        // We write to block j=1 (which is index 0)
+        size_t pcc_idx = (size_t)J * delay * N * N + mat_idx;
+        size_t f_idx = (size_t)(J - 1) * N * N + mat_idx;
+
+        d_pcc[pcc_idx] = d_fprops[f_idx];
+    }
+}
+
+__global__ void compute_exact1rdms_kernel(
+    cuDoubleComplex* d_true1rdms,
+    const cuDoubleComplex* d_coeffs,
+    const double* d_Bmat,
+    int drcCI,
+    int drc2,
+    int nsteps)
+{
+    // Each block handles a single time step 'k'
+    int k = blockIdx.x;
+    if (k > nsteps) return;
+
+    // Dynamically allocate shared memory for the current step's coefficient vector
+    extern __shared__ cuDoubleComplex s_c[];
+
+    // 1. Collaboratively load coeffs.col(k) into Shared Memory
+    for (int i = threadIdx.x; i < drcCI; i += blockDim.x) {
+        s_c[i] = d_coeffs[k * drcCI + i];
+    }
+    __syncthreads();
+
+    // 2. Each thread computes one (or more) rows 'r' of the resulting true1rdms column
+    for (int r = threadIdx.x; r < drc2; r += blockDim.x) {
+        cuDoubleComplex sum = {0.0, 0.0};
+
+        int j = 0; // Flat index representing the reshaped transposed outer product
+
+        for (int col = 0; col < drcCI; ++col) {
+            cuDoubleComplex c_col = s_c[col];
+
+            for (int row = 0; row < drcCI; ++row) {
+                cuDoubleComplex c_row = s_c[row];
+
+                // Mathematically evaluate: op(row, col) of transpose = c_col * conj(c_row)
+                // (x + iy) * (u - iv) = (xu + yv) + i(yu - xv)
+                double P_real = c_col.x * c_row.x + c_col.y * c_row.y;
+                double P_imag = c_col.y * c_row.x - c_col.x * c_row.y;
+
+                // Bmat is Column-Major: drc2 rows, drcCI2 columns
+                double B_val = d_Bmat[j * drc2 + r];
+
+                sum.x += B_val * P_real;
+                sum.y += B_val * P_imag;
+
+                j++;
+            }
+        }
+
+        // Write the reduced sum directly to the final 1RDM matrix
+        d_true1rdms[k * drc2 + r] = sum;
+    }
+}
+
 // Kernel 1: Construct the Hamiltonian matrices for all field-on steps
 __global__ void build_H_batched_kernel(
     cuDoubleComplex* d_H, const double* d_H0, const double* d_dimatz,
@@ -88,8 +164,8 @@ __global__ void build_props_batched_kernel(
         cuDoubleComplex sum = {0.0, 0.0};
         
         for (int j = 0; j < m; ++j) {
-            cuDoubleComplex v1 = d_V[k * m * m + j * m + row]; // V(row, j)
-            cuDoubleComplex v2 = d_V[k * m * m + j * m + col]; // V(col, j)
+            cuDoubleComplex v1 = d_V[(size_t)k * m * m + j * m + row]; // V(row, j)
+            cuDoubleComplex v2 = d_V[(size_t)k * m * m + j * m + col]; // V(col, j)
 
             double phase = -h * d_W[k * m + j];
             double cos_p = cos(phase);
@@ -123,9 +199,9 @@ __global__ void build_props_fieldoff_kernel(
 
         if (row == col) {
             double phase = -h * d_H0[row];
-            d_props[k * m * m + col * m + row] = {cos(phase), sin(phase)};
+            d_props[(size_t)k * m * m + col * m + row] = {cos(phase), sin(phase)};
         } else {
-            d_props[k * m * m + col * m + row] = {0.0, 0.0};
+            d_props[(size_t)k * m * m + col * m + row] = {0.0, 0.0};
         }
     }
 }
@@ -184,59 +260,61 @@ __global__ void copy_bmatr_to_bigmat_kernel(
 
 // Kernel to handle BmatMultNP and the strided assignment into bigmat
 __global__ void bmat_mult_np_kernel(
-    cuDoubleComplex* d_bigmat, 
-    const cuDoubleComplex* d_BmatR, 
+    cuDoubleComplex* d_bigmat,
+    const cuDoubleComplex* d_BmatR,
     const cuDoubleComplex* d_pcc,
     int J, int j, int delay, int N, int drc2, int N2)
 {
     // Each block handles one 'k' (one row of BmatR)
-    int k = blockIdx.x; 
+    int k = blockIdx.x;
     if (k >= drc2) return;
 
     // Thread handles specific output elements in the N x N grid
     int tid = threadIdx.x;
-    
+
     // BmatR is RowMajor (drc2 x N2)
-    const cuDoubleComplex* Bk_ptr = d_BmatR + k * N2; 
-    
-    // pcc is uploaded as a flattened 1D array of ColMajor matrices
-    const cuDoubleComplex* pcc_J_ptr = d_pcc + J * (delay * N * N);
-    int F_lda = delay * N;
-    int F_row_offset = (j - 1) * N;
+    const cuDoubleComplex* Bk_ptr = d_BmatR + k * N2;
+
+    // pcc is a stacked array of contiguous N x N matrices.
+    // We want the block for time J, delay block j. (j is 1-indexed).
+    // THIS IS SAFE
+    size_t pcc_idx = (size_t)J * (size_t)delay * (size_t)N2 + (size_t)(j-1) * (size_t)N2;
+    const cuDoubleComplex* pcc_J_j_ptr = d_pcc + pcc_idx;
+    // const cuDoubleComplex* pcc_J_j_ptr = d_pcc + J * (delay * N * N) + (j - 1) * N * N;
 
     for (int i = tid; i < N2; i += blockDim.x) {
         int u = i / N; // row index of R_k
         int v = i % N; // col index of R_k
-        
+
         cuDoubleComplex sum = {0.0, 0.0};
-        
+
         for (int x = 0; x < N; ++x) {
-            // F(u, x) -> col x, row u + F_row_offset
-            cuDoubleComplex F_ux = pcc_J_ptr[x * F_lda + (u + F_row_offset)];
+            // F(u, x) -> row u, col x
+            cuDoubleComplex F_ux = pcc_J_j_ptr[x * N + u];
             cuDoubleComplex L_ux = {F_ux.x, -F_ux.y}; // Conjugate
-            
+
             for (int y = 0; y < N; ++y) {
                 // Bk is RowMajor
                 cuDoubleComplex B_xy = Bk_ptr[x * N + y];
-                
-                // F^T(y, v) = F(v, y) -> col y, row v + F_row_offset
-                cuDoubleComplex F_vy = pcc_J_ptr[y * F_lda + (v + F_row_offset)];
-                
+
+                // F^T(y, v) = F(v, y) -> row v, col y
+                cuDoubleComplex F_vy = pcc_J_j_ptr[y * N + v];
+
                 // Complex multiplication: B_xy * F_vy
                 double r_temp = B_xy.x * F_vy.x - B_xy.y * F_vy.y;
                 double i_temp = B_xy.x * F_vy.y + B_xy.y * F_vy.x;
-                
+
                 // Multiply by L_ux and accumulate
                 sum.x += L_ux.x * r_temp - L_ux.y * i_temp;
                 sum.y += L_ux.x * i_temp + L_ux.y * r_temp;
             }
         }
-        
+
         // Write out to d_bigmat (ColMajor)
         int global_row = j * drc2 + k;
         int global_col = i;
         int bigmat_lda = (delay + 1) * drc2;
-        
+
         d_bigmat[global_col * bigmat_lda + global_row] = sum;
     }
 }
@@ -326,13 +404,13 @@ class memoryModel
   std::vector<Eigen::MatrixXcd> fprops;    // all time-dependent propagators "exp(-i H_n dt)"
   Eigen::MatrixXcd true1rdms;              // ground truth 1-RDMs
   Eigen::MatrixXcd pred1rdms;              // predicted 1-RDMs (at each of the delay values in delayrange)s
-  std::unordered_set<int> goodStates;      // non-trivial indices of coefficient vector "coeffs"
+  std::vector<int> goodStatesVec;          // non-trivial indices of coefficient vector "coeffs"
   std::vector<int> goodCols;               // columns in "drcCI**2" space to retain
   Eigen::MatrixXcd kronprop;               // one-step field-free Kronecker product propagator
   // propagator chain cache (pcc)
   // the index for the std::vector is J, a discrete time step
   // each complex matrix in the cache is of size (ell*N) x N
-  std::vector<Eigen::MatrixXcd> pcc;
+  cuDoubleComplex* d_pcc = nullptr;
  
   public:
     //constructor
@@ -361,10 +439,6 @@ class memoryModel
 
     // build propagator chain cache
     int buildPCC(void);
-
-    // form bigmat at particular point in time for particular delay value
-    int bigmatFromCache(const int J, Eigen::MatrixXcd& bigmat);
-    int bigmatBuildLocal(const int J, Eigen::MatrixXcd& bigmat);
 
     // print bigmat to screen
     int bigmatPrint(Eigen::MatrixXcd bigmat);
@@ -403,6 +477,8 @@ memoryModel::memoryModel(double dt, double T, double infreq, double amp, int ncy
   else freq = infreq;
   std::cout << "Frequency = " << freq << "\n";
   offstep = static_cast<int>(std::ceil(ncyc / (dt * freq)));
+  // Prevent offstep from exceeding the total simulation length
+  offstep = std::min(offstep, nsteps);
   std::cout << "Field will be on for " << offstep << " time steps\n";
 
   // Load dipole moment matrix (in z direction)
@@ -558,22 +634,55 @@ int memoryModel::tdseProp(const Eigen::VectorXcd& ic)
 
 int memoryModel::exact1RDMS(void)
 {
-  if (!havecoeffs)
-  {
-    std::cout << "TDCI coefficients have not been computed yet!\n";
-    return 1;
-  }
-  // compute ground truth 1RDMs
-  #pragma omp parallel for
-  for (int k=0; k<=nsteps; ++k)
-  {
-    // outer product
-    Eigen::MatrixXcd op = coeffs.col(k) * coeffs.col(k).adjoint();
-    // reduction
-    true1rdms.col(k).noalias() = Bmat * op.transpose().reshaped();
-  }
-  have1rdms = true;
-  return 0;
+    if (!havecoeffs) {
+        std::cout << "TDCI coefficients have not been computed yet!\n";
+        return 1;
+    }
+
+    // Matrix dimensions
+    int m = drcCI;
+    int m2 = m * m;
+    int steps = nsteps + 1;
+
+    // 1. Allocate GPU memory
+    cuDoubleComplex* d_coeffs;
+    cuDoubleComplex* d_true1rdms;
+    double* d_Bmat;
+
+    CHECK_CUDA(cudaMalloc(&d_coeffs, m * steps * sizeof(cuDoubleComplex)));
+    CHECK_CUDA(cudaMalloc(&d_true1rdms, drc2 * steps * sizeof(cuDoubleComplex)));
+    CHECK_CUDA(cudaMalloc(&d_Bmat, drc2 * m2 * sizeof(double)));
+
+    // 2. Upload Data
+    CHECK_CUDA(cudaMemcpy(d_coeffs, coeffs.data(), m * steps * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_Bmat, Bmat.data(), drc2 * m2 * sizeof(double), cudaMemcpyHostToDevice));
+
+    // 3. Launch the Fused Kernel
+    // We launch exactly one block per time step.
+    int blocks = steps;
+
+    // We want roughly one thread per row of true1rdms (drc2).
+    // We round up to the nearest multiple of 32 for warp efficiency.
+    int threads = ((drc2 + 31) / 32) * 32;
+    if (threads > 1024) threads = 1024; // Safety cap
+
+    // Dynamically allocate shared memory based on drcCI
+    size_t shared_mem_size = m * sizeof(cuDoubleComplex);
+
+    compute_exact1rdms_kernel<<<blocks, threads, shared_mem_size>>>(
+        d_true1rdms, d_coeffs, d_Bmat, m, drc2, nsteps
+    );
+    CHECK_CUDA(cudaDeviceSynchronize());
+
+    // 4. Download and Cleanup
+    CHECK_CUDA(cudaMemcpy(true1rdms.data(), d_true1rdms, drc2 * steps * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost));
+
+    cudaFree(d_coeffs);
+    cudaFree(d_true1rdms);
+    cudaFree(d_Bmat);
+
+    have1rdms = true;
+    return 0;
 }
 
 int memoryModel::filterIndices(void)
@@ -583,29 +692,34 @@ int memoryModel::filterIndices(void)
     std::cout << "TDCI coefficients have not been computed yet!\n";
     return 1;
   }
-  const double thresh = 1e-10;
-  double rownorm;
-  for (int j=0; j<drcCI; ++j)
-  {
-    rownorm = coeffs.row(j).norm();
-    if (rownorm >= thresh) goodStates.insert(j);
-  }
 
-  // now figure out which entries in drcCI**2 space we should retain
-  int cnt = 0;
-  for (int row=0; row<drcCI; ++row)
+  // 1. Compute all squared row norms simultaneously
+  const double thresh_sq = 1e-20;
+  Eigen::VectorXd sq_norms = coeffs.rowwise().squaredNorm();
+
+  // 2. Clear and pre-allocate our state vector
+  goodStatesVec.clear();
+  goodStatesVec.reserve(drcCI);
+
+  N = 0;
+  for (int j = 0; j < drcCI; ++j)
   {
-    for (int col=0; col<drcCI; ++col)
+    if (sq_norms(j) >= thresh_sq)
     {
-      if (goodStates.find(row) != goodStates.end())
-        if (goodStates.find(col) != goodStates.end())
-          goodCols.push_back(cnt);
-      cnt++;
-    }    
+      goodStatesVec.push_back(j);
+      ++N;
+    }
   }
 
-  N = goodStates.size();
-  N2 = N*N;
+  // 3. Clear, pre-allocate, and generate goodCols
+  goodCols.clear();
+  goodCols.reserve(N * N);
+
+  for (int r : goodStatesVec)
+    for (int c : goodStatesVec)
+      goodCols.push_back(r * drcCI + c);
+
+  N2 = N * N;
   if (verbose)
     std::cout << "Retaining " << N2 << " or " << goodCols.size() << " entries\n";
 
@@ -614,23 +728,20 @@ int memoryModel::filterIndices(void)
 
   // filter all the propagators
   fprops.resize(nsteps, Eigen::MatrixXcd::Identity(N, N));
-  std::vector<int> goodStatesVec(goodStates.begin(), goodStates.end());
-  std::sort(goodStatesVec.begin(), goodStatesVec.end());
-
   #pragma omp parallel for
-  for (int k=0; k<nsteps; ++k)
+  for (int k = 0; k < nsteps; ++k)
     fprops[k].noalias() = props[k](goodStatesVec, goodStatesVec);
 
   // we need this field-free Kronecker propagator below
-  // we compute it here because we have goodStatesVec handy
   std::complex<double> coeff = -1.0i * h;
-  Eigen::VectorXcd factor = coeff*H0.array();
+  Eigen::VectorXcd factor = coeff * H0.array();
   Eigen::VectorXcd diagvals = factor.array().exp();
   diagvals = diagvals(goodStatesVec);
+
   Eigen::MatrixXcd outer_product = diagvals * diagvals.adjoint();
   Eigen::VectorXcd kron_diag = outer_product.reshaped<Eigen::RowMajor>();
   kronprop = kron_diag.asDiagonal();
-  
+
   filtered = true;
   return 0;
 }
@@ -663,77 +774,86 @@ MatrixXcdRowMajor memoryModel::BmatMult(const Eigen::MatrixXcd& leftmat, const E
 
 int memoryModel::buildPCC(void)
 {
-  if (!filtered)
-  {
-    std::cout << "Filtered indices and propagators must be computed first!\n";
-    return 1;
-  }
-  // let the major axis be nsteps to avoid index madness later
-  // essentially, we want to be able to refer to this things using the absolute time step index J
-  // pcc[J] should be of size (ell*N) x N
-  int upper = delay + offstep;
-  int pccsize = (nsteps < upper) ? nsteps : upper;
-  pcc.resize(pccsize + 1);
-  for (int J=delay; J<=(delay+offstep); ++J)
-  {
-    if (J==nsteps) break;
-    pcc[J].setZero(delay*N, N);
-    pcc[J].block(0, 0, N, N) = fprops[J-1];
-    if (J==delay) // construct a propagator chain that goes back delay steps
-    {
-      for (int j=2; j<=delay; ++j)
-        pcc[J].block((j-1)*N, 0, N, N) = pcc[J].block((j-2)*N, 0, N, N) * fprops[J-j];
+    if (!filtered) {
+        std::cout << "Filtered indices and propagators must be computed first!\n";
+        return 1;
     }
-    else 
-    {
-      #pragma omp parallel for schedule(dynamic)
-      for (int j=2; j<=delay; ++j)
-      {
-        pcc[J].block((j-1)*N, 0, N, N).noalias() = fprops[J-1] * pcc[J-1].block((j-2)*N, 0, N, N);
-      }
+
+    int upper = delay + offstep;
+    int pccsize = (nsteps < upper) ? nsteps : upper;
+
+    // 1. Setup handles and allocations
+    cublasHandle_t cublasH = nullptr;
+    cublasCreate(&cublasH);
+
+    // Flatten fprops for upload
+    std::vector<cuDoubleComplex> fprops_flat((nsteps + 1) * N * N, {0.0, 0.0});
+    for (int k = 0; k < nsteps; ++k) {
+        memcpy(&fprops_flat[k * N * N], fprops[k].data(), N * N * sizeof(cuDoubleComplex));
     }
-  }
-  builtpcc = true;
-  if (verbose)
-    std::cout << "Built propagator chain cache!\n";
-  return 0;
-}
 
-int memoryModel::bigmatFromCache(const int J, Eigen::MatrixXcd& bigmat)
-{
-  Eigen::MatrixXcd thisblock;
-  if (!builtpcc)
-  {
-    std::cout << "Propagator chain cache must be computed first!\n";
-    return 1;
-  }
-  bigmat.block(0, 0, drc2, N2) = BmatR;
-  for (int j=1; j<=delay; ++j)
-  {
-    thisblock = pcc[J].block((j-1)*N,0,N,N);
-    bigmat.block(j*drc2, 0, drc2, N2).noalias() = BmatMultNP(thisblock.conjugate(), thisblock.transpose());
-  }
-  return 0;
-}
+    size_t pcc_elements_per_J = (size_t)delay * N * N;
+    size_t total_pcc_elements = (size_t)(pccsize + 1) * pcc_elements_per_J;
 
-// form bigmat at particular point in time for particular delay value
-int memoryModel::bigmatBuildLocal(const int J, Eigen::MatrixXcd& bigmat)
-{
-  if (!filtered)
-  {
-    std::cout << "Filtered indices and propagators must be computed first!\n";
-    return 1;
-  }
-  bigmat.block(0, 0, drc2, N2) = BmatR;
-  // this will hold our propagator chain
-  Eigen::MatrixXcd Amat(N, N);
-  Amat.setIdentity( N, N );
-  for (int j=1; j<=delay; ++j)
-  {
-    Amat = Amat * fprops[J - j];
-    bigmat.block(j*drc2, 0, drc2, N2) = BmatMultNP(Amat.conjugate(), Amat.transpose());
-  }
-  return 0;
+    if (verbose) std::cout << "Allocating " << (total_pcc_elements * 16.0 / 1e9) << " GB for d_pcc on GPU...\n";
+
+    cuDoubleComplex *d_fprops;
+    CHECK_CUDA(cudaMalloc(&d_fprops, fprops_flat.size() * sizeof(cuDoubleComplex)));
+    CHECK_CUDA(cudaMalloc(&d_pcc, total_pcc_elements * sizeof(cuDoubleComplex)));
+    CHECK_CUDA(cudaMemset(d_pcc, 0, total_pcc_elements * sizeof(cuDoubleComplex)));
+
+    CHECK_CUDA(cudaMemcpy(d_fprops, fprops_flat.data(), fprops_flat.size() * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice));
+
+    // 2. Initialize j=1 blocks for all J
+    int threads = 256;
+    size_t blocks = ((pccsize - delay + 1) * N * N + threads - 1) / threads;
+    init_pcc_j1_kernel<<<blocks, threads>>>(d_pcc, d_fprops, delay, N, pccsize, delay);
+    CHECK_CUDA(cudaDeviceSynchronize());
+
+    cuDoubleComplex alpha = {1.0, 0.0};
+    cuDoubleComplex beta  = {0.0, 0.0};
+
+    // 3. Sequential Chain for J = delay
+    for (int j = 2; j <= delay; ++j) {
+        cuDoubleComplex* d_C = d_pcc + delay * pcc_elements_per_J + (j - 1) * N * N;
+        cuDoubleComplex* d_A = d_pcc + delay * pcc_elements_per_J + (j - 2) * N * N;
+        cuDoubleComplex* d_B = d_fprops + (delay - j) * N * N;
+
+        cublasZgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_N,
+                    N, N, N, &alpha,
+                    d_A, N, d_B, N,
+                    &beta, d_C, N);
+    }
+    CHECK_CUDA(cudaDeviceSynchronize());
+
+    // 4. Batched Generation for J > delay
+    for (int J = delay + 1; J <= pccsize; ++J) {
+
+        cuDoubleComplex* d_A = d_fprops + (J - 1) * N * N;
+        cuDoubleComplex* d_B_array = d_pcc + (J - 1) * pcc_elements_per_J;
+        cuDoubleComplex* d_C_array = d_pcc + J * pcc_elements_per_J + N * N; // Starts at j=2
+
+        cublasZgemmStridedBatched(
+            cublasH, CUBLAS_OP_N, CUBLAS_OP_N,
+            N, N, N,
+            &alpha,
+            d_A, N, 0,                      // strideA = 0 (Broadcast same fprop)
+            d_B_array, N, N * N,            // strideB = N*N (Shift by one block)
+            &beta,
+            d_C_array, N, N * N,            // strideC = N*N (Shift by one block)
+            delay - 1                       // Number of batches
+        );
+    }
+    CHECK_CUDA(cudaDeviceSynchronize());
+
+    // 6. Cleanup
+    cudaFree(d_fprops);
+    cublasDestroy(cublasH);
+
+    builtpcc = true;
+    if (verbose)
+        std::cout << "Built propagator chain cache on GPU!\n";
+    return 0;
 }
 
 int memoryModel::bigmatPrint(Eigen::MatrixXcd bigmat)
@@ -774,11 +894,6 @@ int memoryModel::qpropALLV2(void)
     int m1_cols = M1.cols(); // Note: m1_cols is exactly equal to n (N2)
 
     // Flatten std::vectors for contiguous GPU upload
-    std::vector<cuDoubleComplex> pcc_flat(pcc.size() * delay * N * N);
-    for (size_t J = 0; J < pcc.size(); ++J) {
-        if (pcc[J].size() > 0)
-            memcpy(&pcc_flat[J * delay * N * N], pcc[J].data(), delay * N * N * sizeof(cuDoubleComplex));
-    }
     std::vector<cuDoubleComplex> fprops_flat(nsteps * N * N);
     for (int J = 0; J < nsteps; ++J) {
         memcpy(&fprops_flat[J * N * N], fprops[J].data(), N * N * sizeof(cuDoubleComplex));
@@ -791,10 +906,9 @@ int memoryModel::qpropALLV2(void)
     // -------------------------------------------------------------------------
     // 2. ALLOCATE ALL DEVICE MEMORY (ONCE)
     // -------------------------------------------------------------------------
-    cuDoubleComplex *d_pred1rdms, *d_BmatR, *d_pcc, *d_fprops;
+    cuDoubleComplex *d_pred1rdms, *d_BmatR, *d_fprops;
     CHECK_CUDA(cudaMalloc(&d_pred1rdms, drc2 * (nsteps + 1) * sizeof(cuDoubleComplex)));
     CHECK_CUDA(cudaMalloc(&d_BmatR, drc2 * N2 * sizeof(cuDoubleComplex)));
-    CHECK_CUDA(cudaMalloc(&d_pcc, pcc_flat.size() * sizeof(cuDoubleComplex)));
     CHECK_CUDA(cudaMalloc(&d_fprops, fprops_flat.size() * sizeof(cuDoubleComplex)));
 
     // TSQR Matrices (Notice everything except bigmat is now tiny n x n)
@@ -831,7 +945,6 @@ int memoryModel::qpropALLV2(void)
     // -------------------------------------------------------------------------
     CHECK_CUDA(cudaMemcpy(d_pred1rdms, pred1rdms.data(), drc2 * (nsteps + 1) * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice));
     CHECK_CUDA(cudaMemcpy(d_BmatR, BmatR.data(), drc2 * n * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(d_pcc, pcc_flat.data(), pcc_flat.size() * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice));
     CHECK_CUDA(cudaMemcpy(d_fprops, fprops_flat.data(), fprops_flat.size() * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice));
     CHECK_CUDA(cudaMemcpy(d_M1, M1.data(), m1_rows * n * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice));
 
@@ -975,7 +1088,7 @@ int memoryModel::qpropALLV2(void)
     CHECK_CUDA(cudaDeviceSynchronize());
     CHECK_CUDA(cudaMemcpy(pred1rdms.data(), d_pred1rdms, drc2 * (nsteps + 1) * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost));
 
-    cudaFree(d_pred1rdms); cudaFree(d_BmatR); cudaFree(d_pcc); cudaFree(d_fprops);
+    cudaFree(d_pred1rdms); cudaFree(d_BmatR); cudaFree(d_fprops);
     cudaFree(d_bigmat); cudaFree(d_R); cudaFree(d_UR); cudaFree(d_VT); cudaFree(d_tau);
     cudaFree(d_S); cudaFree(d_rwork); cudaFree(devInfo);
     cudaFree(d_qhist); cudaFree(d_temp); cudaFree(d_temp2); cudaFree(d_PreconVec); 
@@ -995,6 +1108,7 @@ int memoryModel::saveResults(void)
   std::filesystem::path p(inpath);
   std::string stem = p.stem().string();
   std::string filename = stem + "_" + std::to_string(h);
+  filename += "_" + std::to_string(delay);
   filename += "_" + std::to_string(freq);
   filename += "_" + std::to_string(amp);
   filename += "_" + std::to_string(ncyc) + ".txt";
