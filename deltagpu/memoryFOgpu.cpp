@@ -477,6 +477,8 @@ memoryModel::memoryModel(double dt, double T, double infreq, double amp, int ncy
   else freq = infreq;
   std::cout << "Frequency = " << freq << "\n";
   offstep = static_cast<int>(std::ceil(ncyc / (dt * freq)));
+  // Prevent offstep from exceeding the total simulation length
+  offstep = std::min(offstep, nsteps);
   std::cout << "Field will be on for " << offstep << " time steps\n";
 
   // Load dipole moment matrix (in z direction)
