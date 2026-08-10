@@ -1207,6 +1207,7 @@ int main(int argc, char** argv)
   ic[0] = 1.0;
   std::cout << "Just before tdseProp\n";
   mm.tdseProp(ic);
+  /*
   std::cout << "Just after tdseProp\n";
   mm.exact1RDMS();
   std::cout << "Just after exact1RDMS\n";
@@ -1216,6 +1217,7 @@ int main(int argc, char** argv)
   std::cout << "Just after buildPCC\n";
   mm.qpropALLV2();
   mm.saveResults();
+  */
   return 0;
 }
 

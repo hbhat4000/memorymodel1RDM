@@ -33,8 +33,8 @@ LDFLAGS  = -L$(HOME_DIR)/lib -L$(HOME_DIR)/lib64 \
            -Xcompiler "-qopenmp -qmkl=parallel"
 
 # Target
-TARGET   = memoryFO
-SRC      = memoryFOgpu.cpp
+TARGET   = memoryFF
+SRC      = memoryFFgpuV2.cpp
 
 # Default rule
 all: $(TARGET)

@@ -1,25 +1,24 @@
-# Compiler (AOCC Clang C++)
-CXX      = clang++
+# Compiler
+CXX      = icpx
 
-# AOCL Installation Prefix
-AOCL_DIR = /global/cfs/cdirs/m5214/hbhat512
+# base directory for Eigen, cnpy and cxxopts
+BASE_DIR = /home/hbhat
+# BASE_DIR = /u/hbhat
 
 # Compiler flags
-# -march=native replaces Intel's -xHost
-# -fopenmp replaces Intel's -qopenmp
-CXXFLAGS = -O3 -march=native -m64 -std=c++20 -fopenmp \
-           -I $(AOCL_DIR)/include \
-           -I $(AOCL_DIR)/include/eigen3
+CXXFLAGS = -O3 -m64 -std=c++20 \
+           -xHost -qopenmp -qmkl=parallel \
+           -I $(BASE_DIR)/include \
+           -I $(BASE_DIR)/include/eigen3 \
 
 # Linker flags
-# Link order matters: High-level math (flame) -> Low-level math (blis) -> Utilities (aoclutils)
-LDFLAGS  = -L$(AOCL_DIR)/lib \
-           -L$(AOCL_DIR)/lib64 \
-           -lcnpy -lflame -lblis-mt -laoclutils -fopenmp
+LDFLAGS  = -L$(BASE_DIR)/lib \
+           -L$(BASE_DIR)/lib64 \
+           -lcnpy -qopenmp -qmkl=parallel
 
 # Target
-TARGET   = memoryFO
-SRC      = memoryFO.cpp
+TARGET   = memoryFF
+SRC      = memoryFFV2.cpp
 
 # Default rule
 all: $(TARGET)

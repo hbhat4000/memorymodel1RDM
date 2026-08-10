@@ -8,6 +8,7 @@ no_com
 no_reorient
 }
 
+
 set {
     reference rhf
     basis sto-3g
@@ -76,16 +77,16 @@ for i in range(cisize):
 print("Difference between CI basis dipole moment matrices computed via AO vs MO:")
 print(np.mean(np.abs(CIdimatzMO - CIdimatzAO)))
 
-CIdimatfile = np.load('../logfiles/casscf22_s2_h2_sto-3g_CI_dimat.npz')
-print("Difference between new and old CI basis dipole moment matrices:")
-print(np.mean(np.abs(CIdimatfile - CIdimatzMO)))
+# CIdimatfile = np.load('../logfiles/casscf22_s2_h2_sto-3g_CI_dimat.npz')
+# print("Difference between new and old CI basis dipole moment matrices:")
+# print(np.mean(np.abs(CIdimatfile - CIdimatzMO)))
 
-print("Difference between **diagonals** of new and old CI basis dipole moment matrices:")
-print(np.mean(np.abs(np.diag(CIdimatfile - CIdimatzMO))))
+# print("Difference between **diagonals** of new and old CI basis dipole moment matrices:")
+# print(np.mean(np.abs(np.diag(CIdimatfile - CIdimatzMO))))
 
 # reshape OPDMs into B tensor
 
-np.savez('./fci_h2_sto-3g.npz',C=C,S=S,AOdipmat=AOdipmat,CIdimatz=CIdimatzMO,Bten=Bten,ham=ham)
+# np.savez('./fci_h2_sto-3g.npz',C=C,S=S,AOdipmat=AOdipmat,CIdimatz=CIdimatzMO,Bten=Bten,ham=ham)
 
 # for debugging purposes:
 # Bmat = Bten.reshape((cisize**2, n**2))

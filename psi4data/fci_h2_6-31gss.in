@@ -86,7 +86,7 @@ print(np.mean(np.abs(CIdimatzMO - CIdimatzAO)))
 
 # reshape OPDMs into B tensor
 
-np.savez('./fci_h2_6-31gss.npz',C=C,S=S,AOdipmat=AOdipmat,CIdimatz=CIdimatzMO,Bten=Bten,ham=ham)
+# np.savez('./fci_h2_6-31gss.npz',C=C,S=S,AOdipmat=AOdipmat,CIdimatz=CIdimatzMO,Bten=Bten,ham=ham)
 
 # for debugging purposes:
 # Bmat = Bten.reshape((cisize**2, n**2))
